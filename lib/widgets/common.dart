@@ -2,10 +2,13 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 
+import '../currency.dart';
 import '../format.dart';
 import '../l10n.dart';
 import '../models.dart';
 import '../services/photos.dart';
+import '../services/rates.dart';
+import '../settings.dart';
 import '../theme.dart';
 
 // ---------------------------------------------------------------------------
@@ -368,31 +371,105 @@ class Pill extends StatelessWidget {
 /// Долг / переплата / рассчитан.
 class BalancePill extends StatelessWidget {
   final int cents;
+  final String? cur;
+  final bool approx;
 
-  const BalancePill(this.cents, {super.key});
+  const BalancePill(this.cents, {super.key, this.cur, this.approx = false});
 
   @override
   Widget build(BuildContext context) {
     final c = context.colors;
-    if (cents > 0) return Pill(t.debtPill(money(cents)), color: c.debt, background: c.debtBg);
-    if (cents < 0) return Pill(t.overpaidPill(money(-cents)), color: c.income, background: c.incomeBg);
+    final a = approx ? '≈ ' : '';
+    if (cents > 0) return Pill(t.debtPill('$a${money(cents, cur: cur)}'), color: c.debt, background: c.debtBg);
+    if (cents < 0) {
+      return Pill(t.overpaidPill('$a${money(-cents, cur: cur)}'), color: c.income, background: c.incomeBg);
+    }
     return Pill(t.settledPill, color: c.muted, background: context.cs.surfaceContainerHigh, icon: Icons.check_rounded);
   }
 }
 
-/// Остаток по заказу: «долг $X» или «оплачен».
+/// Остаток по заказу: «долг X» или «оплачен».
 class RemainingPill extends StatelessWidget {
   final int cents;
+  final String? cur;
 
-  const RemainingPill(this.cents, {super.key});
+  const RemainingPill(this.cents, {super.key, this.cur});
 
   @override
   Widget build(BuildContext context) {
     final c = context.colors;
     return cents > 0
-        ? Pill(t.debtPill(money(cents)), color: c.debt, background: c.debtBg)
+        ? Pill(t.debtPill(money(cents, cur: cur)), color: c.debt, background: c.debtBg)
         : Pill(t.paidPill, color: c.income, background: c.incomeBg, icon: Icons.check_rounded);
   }
+}
+
+// ---------------------------------------------------------------------------
+// Валюта
+// ---------------------------------------------------------------------------
+
+/// Кнопка выбора валюты: «🇺🇸 USD ▾».
+class CurrencyButton extends StatelessWidget {
+  final String value;
+  final ValueChanged<String> onChanged;
+
+  const CurrencyButton({super.key, required this.value, required this.onChanged});
+
+  @override
+  Widget build(BuildContext context) {
+    final c = currencyOf(value);
+    return Padding(
+      padding: const EdgeInsets.only(right: 6),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: () async {
+          final code = await pickCurrency(context, current: value);
+          if (code != null) onChanged(code);
+        },
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          decoration: BoxDecoration(
+            color: context.cs.primaryContainer.withValues(alpha: 0.6),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            Text(c.flag, style: const TextStyle(fontSize: 16)),
+            const SizedBox(width: 6),
+            Text(c.code, style: context.tt.labelLarge?.copyWith(color: context.cs.onPrimaryContainer)),
+            Icon(Icons.expand_more_rounded, size: 18, color: context.cs.onPrimaryContainer),
+          ]),
+        ),
+      ),
+    );
+  }
+}
+
+/// Список валют для выбора (включённые в настройках + текущая).
+Future<String?> pickCurrency(BuildContext context, {required String current, bool all = false}) {
+  final codes = all ? currencies.map((c) => c.code).toList() : AppSettings.I.currencyChoices(current);
+  final main = AppSettings.I.currency;
+  return showModalBottomSheet<String>(
+    context: context,
+    builder: (ctx) => SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(8, 0, 8, 12),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+            child: Align(alignment: Alignment.centerLeft, child: Text(t.chooseCurrency, style: ctx.tt.titleLarge)),
+          ),
+          for (final code in codes)
+            ListTile(
+              leading: Text(currencyOf(code).flag, style: const TextStyle(fontSize: 24)),
+              title: Text('${currencyOf(code).name(AppSettings.I.lang)} · $code'),
+              subtitle: code == main ? null : Text('1 ${currencySymbol(code)} = ${rateStr(Fx.I.cross(code, main))} ${currencySymbol(main)}'),
+              trailing: code == current ? Icon(Icons.check_rounded, color: ctx.cs.primary) : null,
+              onTap: () => Navigator.pop(ctx, code),
+            ),
+        ]),
+      ),
+    ),
+  );
 }
 
 /// Статус заказа: в работе / выполнен / просрочен.

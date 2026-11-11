@@ -7,12 +7,15 @@ import 'db.dart';
 import 'l10n.dart';
 import 'models.dart';
 import 'services/photos.dart';
+import 'services/rates.dart';
 import 'settings.dart';
 
 /// Единое хранилище приложения. Данных у одного пользователя немного,
 /// поэтому всё держим в памяти и перечитываем после каждого изменения.
 ///
 /// Долг клиента = сумма цен его заказов − залоги − оплаты.
+/// Долги ведутся по валютам («корзины»): заказ в $ — долг в $; оплата в сумах
+/// в счёт долларового долга пересчитывается по курсу на день оплаты.
 class AppStore extends ChangeNotifier {
   AppStore._();
   static final AppStore I = AppStore._();
@@ -25,13 +28,17 @@ class AppStore extends ChangeNotifier {
   List<Payment> payments = [];
   List<Expense> expenses = [];
 
-  Map<int, int> _balances = {};
+  Map<int, Map<String, int>> _buckets = {};
   Map<int, int> _paidByOrder = {};
+
+  String get main => AppSettings.I.currency;
 
   Future<void> init() async {
     await Photos.init();
     _db = await AppDatabase.open();
     await AppSettings.I.load(db);
+    Fx.I.onChanged = notifyListeners;
+    await Fx.I.load(db);
     await reload();
     await Photos.cleanup(_usedPhotos());
   }
@@ -53,16 +60,28 @@ class AppStore extends ChangeNotifier {
   }
 
   void _compute() {
-    final b = <int, int>{for (final c in clients) c.id!: 0};
+    final b = <int, Map<String, int>>{for (final c in clients) c.id!: {}};
     final paid = <int, int>{};
+    final orderCur = {for (final o in orders) o.id!: o.currency};
+    void add(int client, String cur, int v) {
+      final m = b.putIfAbsent(client, () => {});
+      m[cur] = (m[cur] ?? 0) + v;
+    }
+
     for (final o in orders) {
-      b[o.clientId] = (b[o.clientId] ?? 0) + o.priceCents - o.depositCents;
+      add(o.clientId, o.currency, o.priceCents - o.depositCents);
     }
     for (final p in payments) {
-      b[p.clientId] = (b[p.clientId] ?? 0) - p.amountCents;
-      if (p.orderId != null) paid[p.orderId!] = (paid[p.orderId!] ?? 0) + p.amountCents;
+      add(p.clientId, p.appliedCurrency, -p.appliedCents);
+      if (p.orderId != null) {
+        final oc = orderCur[p.orderId!];
+        if (oc != null) {
+          final v = p.appliedCurrency == oc ? p.appliedCents : Fx.I.convert(p.amountCents, p.currency, oc, p.paidAt);
+          paid[p.orderId!] = (paid[p.orderId!] ?? 0) + v;
+        }
+      }
     }
-    _balances = b;
+    _buckets = b;
     _paidByOrder = paid;
   }
 
@@ -84,20 +103,48 @@ class AppStore extends ChangeNotifier {
     return null;
   }
 
-  /// > 0 — клиент должен, < 0 — переплата.
-  int balanceOf(int clientId) => _balances[clientId] ?? 0;
+  /// Долг клиента по валютам (только ненулевые). > 0 — должен, < 0 — переплата.
+  Map<String, int> bucketsOf(int clientId) =>
+      Map.fromEntries((_buckets[clientId] ?? const {}).entries.where((e) => e.value != 0));
 
-  int get totalDebt => _balances.values.where((v) => v > 0).fold(0, (a, b) => a + b);
-  int get totalOverpaid => _balances.values.where((v) => v < 0).fold(0, (a, b) => a - b);
+  /// Итог долга клиента в валюте [cur] (по умолчанию основная) по сегодняшнему курсу.
+  int balanceOf(int clientId, [String? cur]) {
+    final to = cur ?? main;
+    var sum = 0;
+    for (final e in (_buckets[clientId] ?? const <String, int>{}).entries) {
+      sum += Fx.I.convert(e.value, e.key, to);
+    }
+    return sum;
+  }
+
+  /// Валюта, в которой у клиента больше всего долга (для оплат без заказа).
+  String? debtCurrencyOf(int clientId) {
+    String? best;
+    var bestV = 0;
+    for (final e in (_buckets[clientId] ?? const <String, int>{}).entries) {
+      if (e.value <= 0) continue;
+      final v = Fx.I.convert(e.value, e.key, 'USD');
+      if (v > bestV) {
+        bestV = v;
+        best = e.key;
+      }
+    }
+    return best;
+  }
+
+  int get totalDebt => clients.map((c) => balanceOf(c.id!)).where((v) => v > 0).fold(0, (a, b) => a + b);
+  int get totalOverpaid => clients.map((c) => balanceOf(c.id!)).where((v) => v < 0).fold(0, (a, b) => a - b);
 
   /// Должники, от большего долга к меньшему.
-  List<Client> get debtors => clients.where((c) => balanceOf(c.id!) > 0).toList()
-    ..sort((a, b) => balanceOf(b.id!).compareTo(balanceOf(a.id!)));
+  List<Client> get debtors {
+    final bal = {for (final c in clients) c.id!: balanceOf(c.id!)};
+    return clients.where((c) => bal[c.id!]! > 0).toList()..sort((a, b) => bal[b.id!]!.compareTo(bal[a.id!]!));
+  }
 
-  /// Оплачено по заказу отдельными оплатами (без залога).
+  /// Оплачено по заказу отдельными оплатами (без залога), в валюте заказа.
   int paidForOrder(int orderId) => _paidByOrder[orderId] ?? 0;
 
-  /// Сколько ещё должны за конкретный заказ (не меньше нуля).
+  /// Сколько ещё должны за конкретный заказ, в валюте заказа (не меньше нуля).
   int remainingOf(Order o) {
     final r = o.priceCents - o.depositCents - paidForOrder(o.id!);
     return r < 0 ? 0 : r;
@@ -115,23 +162,29 @@ class AppStore extends ChangeNotifier {
     return set.toList();
   }
 
-  MonthSummary summary(YearMonth m) {
+  /// Итоги месяца в валюте [cur] (по умолчанию основная); каждая запись — по курсу своего дня.
+  MonthSummary summary(YearMonth m, [String? cur]) {
+    final to = cur ?? main;
+    final fx = Fx.I;
     var pays = 0, deps = 0, expense = 0, ordSum = 0, ordCount = 0;
     final byCat = <String, int>{};
     for (final p in payments) {
-      if (m.contains(p.paidAt)) pays += p.amountCents;
+      if (m.contains(p.paidAt)) pays += fx.convert(p.amountCents, p.currency, to, p.paidAt);
     }
     for (final o in orders) {
-      if (o.depositCents > 0 && m.contains(o.depositDate)) deps += o.depositCents;
+      if (o.depositCents > 0 && m.contains(o.depositDate)) {
+        deps += fx.convert(o.depositCents, o.currency, to, o.depositDate);
+      }
       if (m.contains(o.acceptedAt)) {
-        ordSum += o.priceCents;
+        ordSum += fx.convert(o.priceCents, o.currency, to, o.acceptedAt);
         ordCount++;
       }
     }
     for (final e in expenses) {
       if (m.contains(e.spentAt)) {
-        expense += e.amountCents;
-        byCat[e.category] = (byCat[e.category] ?? 0) + e.amountCents;
+        final v = fx.convert(e.amountCents, e.currency, to, e.spentAt);
+        expense += v;
+        byCat[e.category] = (byCat[e.category] ?? 0) + v;
       }
     }
     final sortedCat = Map.fromEntries(byCat.entries.toList()..sort((a, b) => b.value.compareTo(a.value)));
@@ -191,13 +244,40 @@ class AppStore extends ChangeNotifier {
   }
 
   Future<int> saveOrder(Order o) async {
-    final old = o.id == null ? null : orderById(o.id!)?.photo;
+    final prev = o.id == null ? null : orderById(o.id!);
+    final old = prev?.photo;
     final id = await _save('orders', o.toMap());
     if (old != null && old != o.photo) await Photos.delete(old);
+    // валюта заказа сменилась — пересчитываем привязанные оплаты
+    if (prev != null && prev.currency != o.currency) {
+      for (final p in paymentsForOrder(id)) {
+        final applied = p.withApplied(o.currency, Fx.I.convert(p.amountCents, p.currency, o.currency, p.paidAt));
+        await db.update('payments', applied.toMap(), where: 'id = ?', whereArgs: [p.id]);
+      }
+      await reload();
+    }
     return id;
   }
 
-  Future<int> savePayment(Payment p) => _save('payments', p.toMap());
+  /// Валюта, в счёт которой пойдёт оплата: валюта заказа или основного долга клиента.
+  String applyCurrencyFor(Payment p) {
+    if (p.id != null && p.orderId == null) {
+      for (final old in payments) {
+        if (old.id == p.id && old.orderId == null && old.clientId == p.clientId) return old.appliedCurrency;
+      }
+    }
+    if (p.orderId != null) {
+      final o = orderById(p.orderId!);
+      if (o != null) return o.currency;
+    }
+    return debtCurrencyOf(p.clientId) ?? p.currency;
+  }
+
+  Future<int> savePayment(Payment p) {
+    final cur = applyCurrencyFor(p);
+    final applied = p.withApplied(cur, Fx.I.convert(p.amountCents, p.currency, cur, p.paidAt));
+    return _save('payments', applied.toMap());
+  }
   Future<int> saveExpense(Expense e) => _save('expenses', e.toMap());
 
   Future<void> deleteClient(int id) async {
@@ -236,6 +316,7 @@ class AppStore extends ChangeNotifier {
     await File(sourcePath).copy(target);
     _db = await AppDatabase.open();
     await AppSettings.I.load(db);
+    await Fx.I.load(db);
     await reload();
   }
 }

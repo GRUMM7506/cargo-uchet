@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:sqflite/sqflite.dart';
 
+import 'currency.dart';
 import 'models.dart';
 
 /// Настройки приложения. Хранятся в таблице settings той же базы,
@@ -27,6 +28,17 @@ class AppSettings extends ChangeNotifier {
   int accentIndex = 0;
   Set<OrderField> hidden = {};
 
+  /// Основная валюта: в ней итоги, долги и отчёты; её предлагаем при вводе.
+  String currency = 'USD';
+
+  /// Валюты, которые показываются при выборе.
+  List<String> enabledCurrencies = [...defaultEnabledCurrencies];
+
+  /// Валюты для выбора: включённые + [extra] (валюта редактируемой записи).
+  List<String> currencyChoices([String? extra]) => [
+        ...currencies.map((c) => c.code).where((c) => enabledCurrencies.contains(c) || c == extra || c == currency),
+      ];
+
   Color get accent => accents[accentIndex.clamp(0, accents.length - 1)];
 
   bool show(OrderField f) => !hidden.contains(f);
@@ -46,6 +58,9 @@ class AppSettings extends ChangeNotifier {
     accentIndex = int.tryParse(m['accent'] ?? '') ?? 0;
     final keys = (m['hidden_v3'] ?? '').split(',').where((s) => s.isNotEmpty).toSet();
     hidden = OrderField.values.where((f) => keys.contains(f.name)).toSet();
+    currency = isKnownCurrency(m['currency'] ?? '') ? m['currency']! : 'USD';
+    final en = (m['currencies'] ?? '').split(',').where(isKnownCurrency).toList();
+    enabledCurrencies = en.isEmpty ? [...defaultEnabledCurrencies] : en;
     notifyListeners();
   }
 
@@ -73,6 +88,23 @@ class AppSettings extends ChangeNotifier {
     accentIndex = i;
     notifyListeners();
     await _put('accent', '$i');
+  }
+
+  Future<void> setCurrency(String code) async {
+    currency = code;
+    if (!enabledCurrencies.contains(code)) enabledCurrencies = [...enabledCurrencies, code];
+    notifyListeners();
+    await _put('currency', code);
+    await _put('currencies', enabledCurrencies.join(','));
+  }
+
+  Future<void> setCurrencyEnabled(String code, bool on) async {
+    if (code == currency && !on) return; // основную валюту не выключаем
+    enabledCurrencies = on
+        ? [...enabledCurrencies.where((c) => c != code), code]
+        : enabledCurrencies.where((c) => c != code).toList();
+    notifyListeners();
+    await _put('currencies', enabledCurrencies.join(','));
   }
 
   Future<void> setFieldVisible(OrderField f, bool visible) async {

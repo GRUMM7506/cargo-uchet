@@ -7,6 +7,7 @@ import 'screens/expenses_screen.dart';
 import 'screens/home_screen.dart';
 import 'screens/orders_screen.dart';
 import 'screens/reports_screen.dart';
+import 'services/rates.dart';
 import 'settings.dart';
 import 'store.dart';
 import 'theme.dart';
@@ -15,6 +16,8 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await AppStore.I.init();
   runApp(const UchetApp());
+  // курсы валют — раз в день, в фоне
+  Fx.I.autoUpdate();
 }
 
 class UchetApp extends StatefulWidget {

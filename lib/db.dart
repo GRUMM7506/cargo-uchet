@@ -3,7 +3,7 @@ import 'package:sqflite/sqflite.dart';
 
 class AppDatabase {
   static const fileName = 'cargo_uchet.db';
-  static const version = 3;
+  static const version = 4;
 
   static Future<String> path() async => p.join(await getDatabasesPath(), fileName);
 
@@ -16,10 +16,12 @@ class AppDatabase {
         await _createV1(db);
         await _upgradeTo2(db);
         await _upgradeTo3(db);
+        await _upgradeTo4(db);
       },
       onUpgrade: (db, from, to) async {
         if (from < 2) await _upgradeTo2(db);
         if (from < 3) await _upgradeTo3(db);
+        if (from < 4) await _upgradeTo4(db);
       },
     );
   }
@@ -83,6 +85,23 @@ class AppDatabase {
     await db.execute('ALTER TABLE orders ADD COLUMN due_at TEXT');
     await db.execute('ALTER TABLE orders ADD COLUMN photo TEXT');
     await db.execute('ALTER TABLE clients ADD COLUMN photo TEXT');
+  }
+
+  /// v4: валюты у сумм и история курсов.
+  static Future<void> _upgradeTo4(Database db) async {
+    await db.execute("ALTER TABLE orders ADD COLUMN currency TEXT NOT NULL DEFAULT 'USD'");
+    await db.execute("ALTER TABLE payments ADD COLUMN currency TEXT NOT NULL DEFAULT 'USD'");
+    await db.execute('ALTER TABLE payments ADD COLUMN apply_currency TEXT');
+    await db.execute('ALTER TABLE payments ADD COLUMN apply_cents INTEGER');
+    await db.execute("ALTER TABLE expenses ADD COLUMN currency TEXT NOT NULL DEFAULT 'USD'");
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS rates (
+        date TEXT NOT NULL,
+        code TEXT NOT NULL,
+        per_usd REAL NOT NULL,
+        manual INTEGER NOT NULL DEFAULT 0,
+        PRIMARY KEY (date, code)
+      )''');
   }
 
   /// Проверяет, что файл — наша база (для восстановления из копии).

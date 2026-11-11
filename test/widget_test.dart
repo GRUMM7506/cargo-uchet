@@ -1,6 +1,7 @@
 import 'package:cargo_uchet/format.dart';
 import 'package:cargo_uchet/l10n.dart';
 import 'package:cargo_uchet/models.dart';
+import 'package:cargo_uchet/services/rates.dart';
 import 'package:cargo_uchet/settings.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -54,5 +55,20 @@ void main() {
     expect(t.dayMonth(12, 11), '12-noyabr');
     expect(const YearMonth(2026, 11).label, 'Noyabr 2026');
     AppSettings.I.lang = 'ru';
+  });
+
+  test('валюты: формат и пересчёт', () {
+    AppSettings.I.lang = 'ru';
+    expect(money(128000000, cur: 'UZS'), '1 280 000 сум');
+    expect(money(30000, cur: 'CNY'), '¥300');
+    expect(money(1050, cur: 'TJS'), '10.5 смн');
+    AppSettings.I.lang = 'uz';
+    expect(money(128000000, cur: 'UZS'), '1 280 000 soʻm');
+    AppSettings.I.lang = 'ru';
+    // без загруженных курсов используются примерные
+    expect(Fx.I.convert(10000, 'USD', 'UZS'), 128000000);
+    expect(Fx.I.convert(128000000, 'UZS', 'USD'), 10000);
+    expect(Fx.I.convert(500, 'USD', 'USD'), 500);
+    expect(Fx.I.isApprox('UZS'), isTrue);
   });
 }

@@ -43,7 +43,12 @@ jobs:
           printf '<?xml version="1.0" encoding="utf-8"?>\n<resources><string name="app_name">Учёт</string></resources>\n' > $RES/values/strings.xml
           printf '<?xml version="1.0" encoding="utf-8"?>\n<resources><string name="app_name">Hisob-kitob</string></resources>\n' > $RES/values-uz/strings.xml
           sed -i 's/android:label="[^"]*"/android:label="@string\/app_name"/' android/app/src/main/AndroidManifest.xml
-          grep -n 'android:label' android/app/src/main/AndroidManifest.xml | tee -a ci.log
+          # Доступ в интернет (курсы валют)
+          grep -q 'android.permission.INTERNET' android/app/src/main/AndroidManifest.xml || \
+            sed -i '0,/<application/s//<uses-permission android:name="android.permission.INTERNET"\/>\n    <application/' android/app/src/main/AndroidManifest.xml
+          # Иконка приложения
+          cp -r ci/android-res/. $RES/
+          grep -n 'android:label\|INTERNET' android/app/src/main/AndroidManifest.xml | tee -a ci.log
 
       - name: Stable signing key (so updates install over the old version)
         run: |

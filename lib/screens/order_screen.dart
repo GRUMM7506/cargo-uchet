@@ -5,6 +5,7 @@ import '../forms.dart';
 import '../l10n.dart';
 import '../models.dart';
 import '../services/photos.dart';
+import '../services/rates.dart';
 import '../settings.dart';
 import '../store.dart';
 import '../theme.dart';
@@ -116,7 +117,7 @@ class OrderScreen extends StatelessWidget {
               const SizedBox(height: 8),
               Wrap(spacing: 8, runSpacing: 6, crossAxisAlignment: WrapCrossAlignment.center, children: [
                 if (s.show(OrderField.done) || o.isOverdue) StatusPill(o),
-                RemainingPill(remaining),
+                RemainingPill(remaining, cur: o.currency),
                 if (s.show(OrderField.due) && due != null)
                   Text(due, style: context.tt.bodySmall?.copyWith(color: o.isOverdue ? c.expense : c.muted)),
               ]),
@@ -130,7 +131,7 @@ class OrderScreen extends StatelessWidget {
                     leading: Avatar(client.name, photo: client.photo),
                     title: client.name,
                     subtitle: client.phone.isEmpty ? null : client.phone,
-                    trailing: BalancePill(store.balanceOf(client.id!)),
+                    trailing: ClientBalancePill(client.id!),
                     onTap: () => Navigator.push(
                       context,
                       MaterialPageRoute(builder: (_) => ClientDetailScreen(clientId: client.id!)),
@@ -141,22 +142,28 @@ class OrderScreen extends StatelessWidget {
 
               // ----- Деньги -----
               SectionCard(children: [
-                KeyValue(t.price, money(o.priceCents)),
+                KeyValue(t.price, money(o.priceCents, cur: o.currency)),
                 if (s.show(OrderField.deposit) || o.depositCents > 0)
                   KeyValue(
                     o.depositCents > 0 ? '${t.deposit} · ${shortDay(o.depositDate)}' : t.deposit,
-                    money(o.depositCents),
+                    money(o.depositCents, cur: o.currency),
                     color: c.income,
                   ),
-                KeyValue(t.paid, money(paid), color: c.income),
+                KeyValue(t.paid, money(paid, cur: o.currency), color: c.income),
                 const Divider(height: 18),
                 remaining > 0
-                    ? KeyValue(t.remaining, money(remaining), color: c.debt, strong: true)
+                    ? KeyValue(t.remaining, money(remaining, cur: o.currency), color: c.debt, strong: true)
                     : Row(children: [
                         Icon(Icons.check_circle_rounded, color: c.income),
                         const SizedBox(width: 8),
                         Text(t.fullyPaid, style: context.tt.titleSmall?.copyWith(color: c.income)),
                       ]),
+                if (remaining > 0 && o.currency != s.currency)
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: Text('≈ ${money(Fx.I.convert(remaining, o.currency, s.currency))}',
+                        style: context.tt.bodySmall?.copyWith(color: c.muted)),
+                  ),
               ]),
               const SizedBox(height: 12),
 

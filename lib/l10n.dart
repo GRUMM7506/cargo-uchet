@@ -250,6 +250,31 @@ abstract class S {
   String shareMonth(String m);
   String get shareAll;
   String get backupSubject;
+
+  // --- валюты ---
+  String get currencySection;
+  String get mainCurrency;
+  String get mainCurrencyHint;
+  String get usedCurrencies;
+  String get rates;
+  String get ratesHint;
+  String get ratesNever;
+  String get updateRates;
+  String get ratesOk;
+  String get ratesError;
+  String get manualMark;
+  String get approxMark;
+  String get ratesSource;
+  String get converter;
+  String get chooseCurrency;
+  String get allCurrencies;
+  String get currencyCol;
+  String appliedAs(String x, String rate);
+  String updatedAt(String when);
+  String inCurrency(String code);
+  String get totalApprox;
+  String get byCurrencies;
+  String rateFor(String code);
 }
 
 // ============================================================================
@@ -719,6 +744,54 @@ class _Ru extends S {
   String get shareAll => 'Учёт — все данные';
   @override
   String get backupSubject => 'Резервная копия учёта';
+
+  // --- валюты ---
+  @override
+  String get currencySection => 'Валюта';
+  @override
+  String get mainCurrency => 'Основная валюта';
+  @override
+  String get mainCurrencyHint => 'В ней показываются итоги, долги и отчёты. Её же предлагаем при вводе новых сумм.';
+  @override
+  String get usedCurrencies => 'Валюты в списке выбора';
+  @override
+  String get rates => 'Курсы валют';
+  @override
+  String get ratesHint => 'Обновляются из интернета раз в день. Нажмите на курс, чтобы ввести свой.';
+  @override
+  String get ratesNever => 'Курсы ещё не загружались — пока используются примерные';
+  @override
+  String get updateRates => 'Обновить курсы';
+  @override
+  String get ratesOk => 'Курсы обновлены';
+  @override
+  String get ratesError => 'Не удалось загрузить курсы. Проверьте интернет.';
+  @override
+  String get manualMark => 'вручную';
+  @override
+  String get approxMark => 'примерно';
+  @override
+  String get ratesSource => 'Источник курсов: ExchangeRate-API (exchangerate-api.com)';
+  @override
+  String get converter => 'Конвертер';
+  @override
+  String get chooseCurrency => 'Валюта';
+  @override
+  String get allCurrencies => 'Все валюты и курсы';
+  @override
+  String get currencyCol => 'Валюта';
+  @override
+  String appliedAs(String x, String rate) => '≈ $x в счёт долга · курс $rate';
+  @override
+  String updatedAt(String when) => 'Обновлено: $when';
+  @override
+  String inCurrency(String code) => 'в $code';
+  @override
+  String get totalApprox => 'Всего ≈';
+  @override
+  String get byCurrencies => 'По валютам';
+  @override
+  String rateFor(String code) => 'Курс: 1 $code =';
 }
 
 // ============================================================================
@@ -1180,4 +1253,52 @@ class _Uz extends S {
   String get shareAll => 'Hisob-kitob — barcha maʼlumotlar';
   @override
   String get backupSubject => 'Hisob-kitob zaxira nusxasi';
+
+  // --- валюты ---
+  @override
+  String get currencySection => 'Valyuta';
+  @override
+  String get mainCurrency => 'Asosiy valyuta';
+  @override
+  String get mainCurrencyHint => 'Yakunlar, qarzlar va hisobotlar shu valyutada koʻrsatiladi. Yangi summalar ham shu valyutada taklif qilinadi.';
+  @override
+  String get usedCurrencies => 'Tanlash roʻyxatidagi valyutalar';
+  @override
+  String get rates => 'Valyuta kurslari';
+  @override
+  String get ratesHint => 'Kunda bir marta internetdan yangilanadi. Oʻz kursingizni kiritish uchun kursni bosing.';
+  @override
+  String get ratesNever => 'Kurslar hali yuklanmagan — hozircha taxminiy kurslar';
+  @override
+  String get updateRates => 'Kurslarni yangilash';
+  @override
+  String get ratesOk => 'Kurslar yangilandi';
+  @override
+  String get ratesError => 'Kurslarni yuklab boʻlmadi. Internetni tekshiring.';
+  @override
+  String get manualMark => 'qoʻlda';
+  @override
+  String get approxMark => 'taxminiy';
+  @override
+  String get ratesSource => 'Kurslar manbai: ExchangeRate-API (exchangerate-api.com)';
+  @override
+  String get converter => 'Konvertor';
+  @override
+  String get chooseCurrency => 'Valyuta';
+  @override
+  String get allCurrencies => 'Barcha valyuta va kurslar';
+  @override
+  String get currencyCol => 'Valyuta';
+  @override
+  String appliedAs(String x, String rate) => '≈ $x qarz hisobiga · kurs $rate';
+  @override
+  String updatedAt(String when) => 'Yangilangan: $when';
+  @override
+  String inCurrency(String code) => '$code da';
+  @override
+  String get totalApprox => 'Jami ≈';
+  @override
+  String get byCurrencies => 'Valyutalar boʻyicha';
+  @override
+  String rateFor(String code) => 'Kurs: 1 $code =';
 }

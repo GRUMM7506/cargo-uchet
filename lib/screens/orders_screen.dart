@@ -4,6 +4,7 @@ import '../format.dart';
 import '../forms.dart';
 import '../l10n.dart';
 import '../models.dart';
+import '../services/rates.dart';
 import '../settings.dart';
 import '../store.dart';
 import '../theme.dart';
@@ -49,8 +50,10 @@ class _OrdersScreenState extends State<OrdersScreen> {
         if (filter == _Filter.active) {
           list = [...list.where((o) => o.isOverdue), ...list.where((o) => !o.isOverdue)];
         }
-        final sum = list.fold(0, (a, o) => a + o.priceCents);
-        final remain = list.fold(0, (a, o) => a + store.remainingOf(o));
+        final main = set.currency;
+        final sum = list.fold(0, (a, o) => a + Fx.I.convert(o.priceCents, o.currency, main, o.acceptedAt));
+        final remain = list.fold(0, (a, o) => a + Fx.I.convert(store.remainingOf(o), o.currency, main));
+        final mixed = list.any((o) => o.currency != main);
         final activeCount = store.orders.where((o) => !o.isDone).length;
 
         return Scaffold(
@@ -100,10 +103,12 @@ class _OrdersScreenState extends State<OrdersScreen> {
                 Padding(
                   padding: const EdgeInsets.fromLTRB(20, 2, 20, 10),
                   child: Row(children: [
-                    Text('${t.pcs(list.length)} · ${money(sum)}',
+                    Text('${t.pcs(list.length)} · ${mixed ? '≈ ' : ''}${money(sum)}',
                         style: context.tt.labelLarge?.copyWith(color: context.colors.muted)),
                     const Spacer(),
-                    if (remain > 0) Text(t.debtPill(money(remain)), style: amountStyle(15, color: context.colors.debt)),
+                    if (remain > 0)
+                      Text(t.debtPill('${mixed ? '≈ ' : ''}${money(remain)}'),
+                          style: amountStyle(15, color: context.colors.debt)),
                   ]),
                 ),
               if (list.isEmpty)

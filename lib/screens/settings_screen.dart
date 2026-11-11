@@ -1,12 +1,16 @@
 import 'package:flutter/material.dart';
 
+import '../currency.dart';
+import '../format.dart';
 import '../l10n.dart';
 import '../models.dart';
 import '../services/export_service.dart';
+import '../services/rates.dart';
 import '../settings.dart';
 import '../theme.dart';
 import '../widgets/common.dart';
 import '../widgets/tiles.dart';
+import 'rates_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
   /// Сразу прокрутить к полям заказа.
@@ -54,7 +58,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Widget build(BuildContext context) {
     final s = AppSettings.I;
     return ListenableBuilder(
-      listenable: s,
+      listenable: Listenable.merge([s, Fx.I]),
       builder: (context, _) => Scaffold(
         appBar: AppBar(title: Text(t.settings)),
         body: ListView(
@@ -69,6 +73,45 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 selected: {s.lang},
                 showSelectedIcon: false,
                 onSelectionChanged: (v) => s.setLang(v.first),
+              ),
+            ]),
+            const SizedBox(height: 12),
+
+            // ---------------- Валюта ----------------
+            SectionCard(title: t.currencySection, children: [
+              Row(children: [
+                Expanded(child: Text(t.mainCurrency, style: context.tt.titleSmall)),
+                CurrencyButton(value: s.currency, onChanged: s.setCurrency),
+              ]),
+              const SizedBox(height: 6),
+              Text(t.mainCurrencyHint, style: context.tt.bodySmall?.copyWith(color: context.colors.muted)),
+              const SizedBox(height: 16),
+              Text(t.usedCurrencies, style: context.tt.titleSmall),
+              const SizedBox(height: 10),
+              Wrap(spacing: 8, runSpacing: 8, children: [
+                for (final c in currencies)
+                  FilterChip(
+                    avatar: Text(c.flag),
+                    label: Text(c.code),
+                    selected: s.enabledCurrencies.contains(c.code),
+                    onSelected: c.code == s.currency ? null : (v) => s.setCurrencyEnabled(c.code, v),
+                  ),
+              ]),
+              const SizedBox(height: 8),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: IconBadge(Icons.currency_exchange_rounded,
+                    size: 40, color: context.cs.primary, background: context.cs.primaryContainer.withValues(alpha: 0.6)),
+                title: Text(t.allCurrencies),
+                subtitle: Text(
+                  [
+                    for (final code in s.currencyChoices().where((c) => c != s.currency).take(3))
+                      '1 ${currencySymbol(code)} = ${rateStr(Fx.I.cross(code, s.currency))} ${currencySymbol(s.currency)}',
+                  ].join(' · '),
+                  maxLines: 2,
+                ),
+                trailing: const Icon(Icons.chevron_right_rounded),
+                onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const RatesScreen())),
               ),
             ]),
             const SizedBox(height: 12),
@@ -120,6 +163,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   child: OrderTile(
                     Order(
                       clientId: -1,
+                      currency: s.currency,
                       description: t.sampleWork,
                       priceCents: 45000,
                       depositCents: 15000,
@@ -167,10 +211,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
               ],
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 24),
             Center(
-              child: Text('${t.appTitle} · ${t.versionLabel} 2.0',
-                  style: context.tt.bodySmall?.copyWith(color: context.colors.muted)),
+              child: Column(children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(16),
+                  child: Image.asset('assets/images/logo.png', width: 56, height: 56),
+                ),
+                const SizedBox(height: 8),
+                Text('${t.appTitle} · ${t.versionLabel} 2.1',
+                    style: context.tt.bodySmall?.copyWith(color: context.colors.muted)),
+              ]),
             ),
           ],
         ),

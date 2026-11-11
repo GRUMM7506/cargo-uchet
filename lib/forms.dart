@@ -5,10 +5,12 @@ import 'format.dart';
 import 'l10n.dart';
 import 'models.dart';
 import 'services/photos.dart';
+import 'services/rates.dart';
 import 'settings.dart';
 import 'store.dart';
 import 'theme.dart';
 import 'widgets/common.dart';
+import 'widgets/tiles.dart';
 
 final _store = AppStore.I;
 final _settings = AppSettings.I;
@@ -17,13 +19,22 @@ const _gap = SizedBox(height: 12);
 
 final _decimalOnly = [FilteringTextInputFormatter.allow(RegExp(r'[0-9.,\s]'))];
 
-InputDecoration _dec(String label, {String? hint, String? prefix, IconData? icon, String? helper}) => InputDecoration(
+InputDecoration _dec(String label,
+        {String? hint, String? prefix, String? suffix, Widget? suffixIcon, IconData? icon, String? helper}) =>
+    InputDecoration(
       labelText: label,
       hintText: hint,
       prefixText: prefix,
+      suffixText: suffix,
+      suffixIcon: suffixIcon,
       helperText: helper,
+      helperMaxLines: 2,
       prefixIcon: icon == null ? null : Icon(icon),
     );
+
+/// «1 $ = 12 850 сум»
+String _rateLine(String from, String to) =>
+    '1 ${currencySymbol(from)} = ${rateStr(Fx.I.cross(from, to))} ${currencySymbol(to)}';
 
 /// Каркас формы: AppBar с удалением + кнопка «Сохранить» внизу.
 class _FormScaffold extends StatelessWidget {
@@ -201,7 +212,7 @@ class _ClientPickerSheetState extends State<_ClientPickerSheet> {
                     contentPadding: const EdgeInsets.symmetric(horizontal: 16),
                     leading: Avatar(c.name, photo: c.photo, size: 40),
                     title: Text(c.name),
-                    trailing: BalancePill(_store.balanceOf(c.id!)),
+                    trailing: ClientBalancePill(c.id!),
                     onTap: () => Navigator.pop(context, c.id),
                   );
                 },
@@ -338,6 +349,7 @@ class _OrderFormPageState extends State<OrderFormPage> {
   final _key = GlobalKey<FormState>();
   late int? _clientId = widget.order?.clientId ?? widget.clientId;
   late String? _photo = widget.order?.photo;
+  late String _currency = widget.order?.currency ?? _settings.currency;
   late final _desc = TextEditingController(text: widget.order?.description ?? '');
   late final _price = TextEditingController(
     text: widget.order == null ? '' : moneyInput(widget.order!.priceCents),
@@ -379,6 +391,7 @@ class _OrderFormPageState extends State<OrderFormPage> {
       clientId: _clientId!,
       description: _desc.text.trim(),
       photo: _photo,
+      currency: _currency,
       priceCents: parseMoney(_price.text)!,
       depositCents: deposit,
       // дату залога храним, только если она отличается от даты приёма
@@ -441,7 +454,11 @@ class _OrderFormPageState extends State<OrderFormPage> {
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
             inputFormatters: _decimalOnly,
             style: amountStyle(22),
-            decoration: _dec(t.workPrice, prefix: '\$ ', icon: Icons.sell_outlined),
+            decoration: _dec(
+              t.workPrice,
+              icon: Icons.sell_outlined,
+              suffixIcon: CurrencyButton(value: _currency, onChanged: (c) => setState(() => _currency = c)),
+            ),
             validator: (v) {
               final x = parseMoney(v ?? '');
               if (x == null) return t.enterAmount;
@@ -456,7 +473,8 @@ class _OrderFormPageState extends State<OrderFormPage> {
               keyboardType: const TextInputType.numberWithOptions(decimal: true),
               inputFormatters: _decimalOnly,
               style: amountStyle(18, color: c.income),
-              decoration: _dec(t.deposit, prefix: '\$ ', icon: Icons.savings_outlined, helper: t.depositHint),
+              decoration: _dec(t.deposit,
+                  suffix: currencySymbol(_currency), icon: Icons.savings_outlined, helper: t.depositHint),
               validator: (v) {
                 final d = parseMoney(v ?? '') ?? 0;
                 final p = parseMoney(_price.text) ?? 0;
@@ -492,7 +510,7 @@ class _OrderFormPageState extends State<OrderFormPage> {
                     style: context.tt.titleSmall?.copyWith(color: remain > 0 ? c.debt : c.income),
                   ),
                 ),
-                if (remain > 0) Text(money(remain), style: amountStyle(20, color: c.debt)),
+                if (remain > 0) Text(money(remain, cur: _currency), style: amountStyle(20, color: c.debt)),
               ]),
             ),
           ],
@@ -585,6 +603,8 @@ class _PaymentFormPageState extends State<PaymentFormPage> {
   final _key = GlobalKey<FormState>();
   late int? _clientId = widget.payment?.clientId ?? widget.clientId;
   late int? _orderId = widget.payment?.orderId ?? widget.orderId;
+  late String _currency;
+  bool _currencyTouched = false;
   late final _amount = TextEditingController(
     text: widget.payment == null ? '' : moneyInput(widget.payment!.amountCents),
   );
@@ -598,6 +618,41 @@ class _PaymentFormPageState extends State<PaymentFormPage> {
     if (_clientId == null && widget.orderId != null) {
       _clientId = _store.orderById(widget.orderId!)?.clientId;
     }
+    if (widget.payment != null) {
+      _currency = widget.payment!.currency;
+      _currencyTouched = true;
+    } else {
+      _currency = _defaultCurrency();
+    }
+    _amount.addListener(() => setState(() {}));
+  }
+
+  /// Валюта по умолчанию: валюта заказа → валюта долга клиента → основная.
+  String _defaultCurrency() {
+    if (_orderId != null) {
+      final o = _store.orderById(_orderId!);
+      if (o != null) return o.currency;
+    }
+    if (_clientId != null) {
+      final d = _store.debtCurrencyOf(_clientId!);
+      if (d != null) return d;
+    }
+    return _settings.currency;
+  }
+
+  void _resetCurrency() {
+    if (!_currencyTouched) _currency = _defaultCurrency();
+  }
+
+  /// В какой валюте долг гасится этой оплатой.
+  String _targetCurrency() {
+    if (_orderId != null) {
+      final o = _store.orderById(_orderId!);
+      if (o != null) return o.currency;
+    }
+    final edit = widget.payment;
+    if (edit != null && edit.orderId == null && edit.clientId == _clientId) return edit.appliedCurrency;
+    return (_clientId == null ? null : _store.debtCurrencyOf(_clientId!)) ?? _currency;
   }
 
   Future<void> _save() async {
@@ -608,6 +663,7 @@ class _PaymentFormPageState extends State<PaymentFormPage> {
       id: widget.payment?.id,
       clientId: _clientId!,
       orderId: _orderId,
+      currency: _currency,
       amountCents: parseMoney(_amount.text)!,
       paidAt: _date,
       note: _note.text.trim(),
@@ -623,22 +679,35 @@ class _PaymentFormPageState extends State<PaymentFormPage> {
 
   @override
   Widget build(BuildContext context) {
-    // Баланс без учёта редактируемой оплаты — чтобы кнопка «весь долг» работала и при правке.
+    final fx = Fx.I;
     final edit = widget.payment;
+    // Долг клиента без учёта редактируемой оплаты — чтобы «весь долг» работал и при правке.
     int? balance;
+    Map<String, int> buckets = {};
     if (_clientId != null) {
-      balance = _store.balanceOf(_clientId!);
-      if (edit != null && edit.clientId == _clientId) balance += edit.amountCents;
+      balance = _store.balanceOf(_clientId!, _currency);
+      buckets = _store.bucketsOf(_clientId!);
+      if (edit != null && edit.clientId == _clientId) {
+        balance += fx.convert(edit.appliedCents, edit.appliedCurrency, _currency);
+        final m = Map<String, int>.from(buckets);
+        m[edit.appliedCurrency] = (m[edit.appliedCurrency] ?? 0) + edit.appliedCents;
+        m.removeWhere((k, v) => v == 0);
+        buckets = m;
+      }
     }
     final clientOrders = _clientId == null ? <Order>[] : _store.ordersOf(_clientId!);
     if (_orderId != null && !clientOrders.any((o) => o.id == _orderId)) _orderId = null;
     final order = _orderId == null ? null : _store.orderById(_orderId!);
-    int? orderRemain;
+    int? orderRemain; // в валюте оплаты
     if (order != null) {
-      orderRemain = _store.remainingOf(order);
-      if (edit != null && edit.orderId == order.id) orderRemain += edit.amountCents;
+      var r = _store.remainingOf(order);
+      if (edit != null && edit.orderId == order.id) r += edit.appliedCents;
+      orderRemain = fx.convert(r, order.currency, _currency);
     }
+    final target = _targetCurrency();
+    final amount = parseMoney(_amount.text);
     final c = context.colors;
+    final debtText = buckets.length > 1 ? '${bucketsText(buckets)} (≈ ${money(balance ?? 0, cur: _currency)})' : null;
 
     return _FormScaffold(
       title: edit == null ? t.paymentFromClient : t.payment,
@@ -652,6 +721,7 @@ class _PaymentFormPageState extends State<PaymentFormPage> {
           onChanged: (id) => setState(() {
             _clientId = id;
             _clientError = false;
+            _resetCurrency();
           }),
         ),
         if (balance != null) ...[
@@ -671,8 +741,10 @@ class _PaymentFormPageState extends State<PaymentFormPage> {
               Expanded(
                 child: Text(
                   balance > 0
-                      ? t.clientDebt(money(balance))
-                      : (balance < 0 ? t.clientOverpaid(money(-balance)) : t.clientSettled),
+                      ? t.clientDebt(debtText ?? (buckets.length == 1 ? bucketsText(buckets) : money(balance, cur: _currency)))
+                      : (balance < 0
+                          ? t.clientOverpaid(debtText ?? money(-balance, cur: _currency))
+                          : t.clientSettled),
                   style: context.tt.titleSmall?.copyWith(
                     color: balance > 0 ? c.debt : (balance < 0 ? c.income : c.muted),
                   ),
@@ -693,7 +765,20 @@ class _PaymentFormPageState extends State<PaymentFormPage> {
           keyboardType: const TextInputType.numberWithOptions(decimal: true),
           inputFormatters: _decimalOnly,
           style: amountStyle(26, color: c.income),
-          decoration: _dec(t.howMuchGave, prefix: '\$ ', icon: Icons.south_west_rounded),
+          decoration: _dec(
+            t.howMuchGave,
+            icon: Icons.south_west_rounded,
+            suffixIcon: CurrencyButton(
+              value: _currency,
+              onChanged: (v) => setState(() {
+                _currency = v;
+                _currencyTouched = true;
+              }),
+            ),
+            helper: amount != null && amount > 0 && target != _currency
+                ? t.appliedAs(money(fx.convert(amount, _currency, target, _date), cur: target), _rateLine(target, _currency))
+                : null,
+          ),
           validator: (v) {
             final x = parseMoney(v ?? '');
             if (x == null || x <= 0) return t.enterAmount;
@@ -716,19 +801,22 @@ class _PaymentFormPageState extends State<PaymentFormPage> {
                 DropdownMenuItem<int?>(
                   value: o.id,
                   child: Text(
-                    '${shortDay(o.acceptedAt)} · ${o.title} · ${money(o.priceCents)}',
+                    '${shortDay(o.acceptedAt)} · ${o.title} · ${money(o.priceCents, cur: o.currency)}',
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
             ],
-            onChanged: (v) => setState(() => _orderId = v),
+            onChanged: (v) => setState(() {
+              _orderId = v;
+              _resetCurrency();
+            }),
           ),
           if (orderRemain != null && orderRemain > 0)
             Align(
               alignment: Alignment.centerRight,
               child: TextButton(
                 onPressed: () => setState(() => _amount.text = moneyInput(orderRemain!)),
-                child: Text('${t.orderRemainder}: ${money(orderRemain)}'),
+                child: Text('${t.orderRemainder}: ${money(orderRemain, cur: _currency)}'),
               ),
             ),
           _gap,
@@ -762,12 +850,14 @@ class _ExpenseFormPageState extends State<ExpenseFormPage> {
   );
   late final _note = TextEditingController(text: widget.expense?.note ?? '');
   late DateTime _date = widget.expense?.spentAt ?? today();
+  late String _currency = widget.expense?.currency ?? _settings.currency;
 
   Future<void> _save() async {
     if (!_key.currentState!.validate()) return;
     await _store.saveExpense(Expense(
       id: widget.expense?.id,
       category: _category.text.trim(),
+      currency: _currency,
       amountCents: parseMoney(_amount.text)!,
       spentAt: _date,
       note: _note.text.trim(),
@@ -796,7 +886,11 @@ class _ExpenseFormPageState extends State<ExpenseFormPage> {
           keyboardType: const TextInputType.numberWithOptions(decimal: true),
           inputFormatters: _decimalOnly,
           style: amountStyle(26, color: c.expense),
-          decoration: _dec(t.amount, prefix: '\$ ', icon: Icons.north_east_rounded),
+          decoration: _dec(
+            t.amount,
+            icon: Icons.north_east_rounded,
+            suffixIcon: CurrencyButton(value: _currency, onChanged: (c) => setState(() => _currency = c)),
+          ),
           validator: (v) {
             final x = parseMoney(v ?? '');
             if (x == null || x <= 0) return t.enterAmount;

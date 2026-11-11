@@ -5,6 +5,7 @@ import '../forms.dart';
 import '../l10n.dart';
 import '../models.dart';
 import '../services/photos.dart';
+import '../services/rates.dart';
 import '../settings.dart';
 import '../store.dart';
 import '../theme.dart';
@@ -172,9 +173,14 @@ class _ClientDetailScreenState extends State<ClientDetailScreen> {
         final orders = store.ordersOf(c.id!);
         final payments = store.paymentsOf(c.id!);
         final balance = store.balanceOf(c.id!);
-        final totalOrders = orders.fold(0, (a, o) => a + o.priceCents);
-        final totalDeposits = orders.fold(0, (a, o) => a + o.depositCents);
-        final totalPaid = payments.fold(0, (a, p) => a + p.amountCents);
+        final fx = Fx.I;
+        final main = AppSettings.I.currency;
+        final totalOrders = orders.fold(0, (a, o) => a + fx.convert(o.priceCents, o.currency, main, o.acceptedAt));
+        final totalDeposits =
+            orders.fold(0, (a, o) => a + fx.convert(o.depositCents, o.currency, main, o.depositDate));
+        final totalPaid = payments.fold(0, (a, p) => a + fx.convert(p.amountCents, p.currency, main, p.paidAt));
+        final buckets = store.bucketsOf(c.id!);
+        final single = buckets.length == 1 ? buckets.entries.first : null;
         final col = context.colors;
         final balColor = balance > 0 ? col.debt : (balance < 0 ? col.income : col.muted);
 
@@ -237,7 +243,20 @@ class _ClientDetailScreenState extends State<ClientDetailScreen> {
                     balance > 0 ? t.debt : (balance < 0 ? t.overpaid : t.settled),
                     style: context.tt.labelLarge?.copyWith(color: balColor),
                   ),
-                  if (balance != 0) Text(money(balance.abs()), style: amountStyle(32, color: balColor)),
+                  if (single != null) ...[
+                    Text(money(single.value.abs(), cur: single.key), style: amountStyle(32, color: balColor)),
+                    if (single.key != main)
+                      Text('≈ ${money(balance.abs())}', style: context.tt.bodyMedium?.copyWith(color: col.muted)),
+                  ] else if (balance != 0) ...[
+                    Text('≈ ${money(balance.abs())}', style: amountStyle(32, color: balColor)),
+                    const SizedBox(height: 6),
+                    for (final e in buckets.entries)
+                      KeyValue(
+                        e.value > 0 ? '${t.debt} · ${e.key}' : '${t.overpaid} · ${e.key}',
+                        money(e.value.abs(), cur: e.key),
+                        color: e.value > 0 ? col.debt : col.income,
+                      ),
+                  ],
                   const SizedBox(height: 10),
                   const Divider(),
                   const SizedBox(height: 6),

@@ -119,7 +119,7 @@ class PaymentTile extends StatelessWidget {
           : IconBadge(Icons.south_west_rounded, color: c.income, background: c.incomeBg),
       title: showClient ? (client?.name ?? '—') : t.payment,
       subtitle: showClient && sub.isEmpty ? t.payment : sub,
-      trailing: Text(money(p.amountCents, plus: true), style: amountStyle(15, color: c.income)),
+      trailing: Text(money(p.amountCents, cur: p.currency, plus: true), style: amountStyle(15, color: c.income)),
       onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => PaymentFormPage(payment: p))),
     );
   }
@@ -139,7 +139,7 @@ class DepositTile extends StatelessWidget {
       leading: Avatar(client?.name ?? '—', photo: client?.photo),
       title: client?.name ?? '—',
       subtitle: '${t.deposit} · ${o.title}',
-      trailing: Text(money(o.depositCents, plus: true), style: amountStyle(15, color: c.income)),
+      trailing: Text(money(o.depositCents, cur: o.currency, plus: true), style: amountStyle(15, color: c.income)),
       onTap: () => OrderScreen.open(context, o.id!),
     );
   }
@@ -158,7 +158,7 @@ class ExpenseTile extends StatelessWidget {
       leading: IconBadge(categoryIcon(e.category), color: c.expense, background: c.expenseBg),
       title: e.category,
       subtitle: [if (showDate) shortDay(e.spentAt), if (e.note.isNotEmpty) e.note].join(' · '),
-      trailing: Text(money(-e.amountCents), style: amountStyle(15, color: c.expense)),
+      trailing: Text(money(-e.amountCents, cur: e.currency), style: amountStyle(15, color: c.expense)),
       onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => ExpenseFormPage(expense: e))),
     );
   }
@@ -222,13 +222,13 @@ class OrderTile extends StatelessWidget {
       subtitle: lines.join('\n'),
       meta: Wrap(spacing: 6, runSpacing: 4, children: [
         if (s.show(OrderField.done) || o.isOverdue) StatusPill(o),
-        RemainingPill(remaining),
+        RemainingPill(remaining, cur: o.currency),
       ]),
       trailing: Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-        Text(money(o.priceCents), style: amountStyle(15, color: context.cs.onSurface)),
+        Text(money(o.priceCents, cur: o.currency), style: amountStyle(15, color: context.cs.onSurface)),
         if (s.show(OrderField.deposit) && o.depositCents > 0) ...[
           const SizedBox(height: 4),
-          Text('${t.deposit} ${money(o.depositCents)}', style: context.tt.bodySmall?.copyWith(color: c.muted)),
+          Text('${t.deposit} ${money(o.depositCents, cur: o.currency)}', style: context.tt.bodySmall?.copyWith(color: c.muted)),
         ],
       ]),
       onTap: previewName != null ? null : () => OrderScreen.open(context, o.id!),
@@ -259,11 +259,28 @@ class ClientTile extends StatelessWidget {
       leading: Avatar(client.name, photo: client.photo),
       title: client.name,
       subtitle: sub.isEmpty ? null : sub,
-      trailing: BalancePill(_store.balanceOf(client.id!)),
+      trailing: ClientBalancePill(client.id!),
       onTap: onTap,
     );
   }
 }
+
+/// Долг клиента: если он в одной валюте — точно в ней, если в нескольких — итог ≈ в основной.
+class ClientBalancePill extends StatelessWidget {
+  final int clientId;
+
+  const ClientBalancePill(this.clientId, {super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final b = _store.bucketsOf(clientId);
+    if (b.length == 1) return BalancePill(b.values.first, cur: b.keys.first);
+    return BalancePill(_store.balanceOf(clientId), approx: b.length > 1);
+  }
+}
+
+/// Строчки долга по валютам: «$200 · 500 000 сум».
+String bucketsText(Map<String, int> b) => b.entries.map((e) => money(e.value.abs(), cur: e.key)).join(' · ');
 
 /// Список операций, сгруппированный по дням.
 class DayGroupedList extends StatelessWidget {

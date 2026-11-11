@@ -51,6 +51,7 @@ class Order {
   final int clientId;
   final String description;
   final String? photo;
+  final String currency;
   final int priceCents;
   final int depositCents;
   final DateTime? depositAt;
@@ -64,6 +65,7 @@ class Order {
     required this.clientId,
     this.description = '',
     this.photo,
+    this.currency = 'USD',
     required this.priceCents,
     this.depositCents = 0,
     this.depositAt,
@@ -87,6 +89,7 @@ class Order {
         clientId: clientId,
         description: description,
         photo: clearPhoto ? null : (photo ?? this.photo),
+        currency: currency,
         priceCents: priceCents,
         depositCents: depositCents,
         depositAt: depositAt,
@@ -101,6 +104,7 @@ class Order {
         'client_id': clientId,
         'description': description,
         'photo': photo,
+        'currency': currency,
         'amount_cents': priceCents,
         'deposit_cents': depositCents,
         'deposit_at': depositAt == null ? null : dateToDb(depositAt!),
@@ -115,6 +119,7 @@ class Order {
         clientId: m['client_id'] as int,
         description: (m['description'] as String?) ?? '',
         photo: m['photo'] as String?,
+        currency: (m['currency'] as String?) ?? 'USD',
         priceCents: m['amount_cents'] as int,
         depositCents: (m['deposit_cents'] as int?) ?? 0,
         depositAt: dateFromDbOrNull(m['deposit_at']),
@@ -129,41 +134,72 @@ class Payment {
   final int? id;
   final int clientId;
   final int? orderId;
+  final String currency;
   final int amountCents;
   final DateTime paidAt;
   final String note;
+
+  /// В счёт долга в какой валюте пошла оплата и сколько это в той валюте
+  /// (пересчёт по курсу на день оплаты). null — та же валюта и сумма.
+  final String? applyCurrency;
+  final int? applyCents;
 
   const Payment({
     this.id,
     required this.clientId,
     this.orderId,
+    this.currency = 'USD',
     required this.amountCents,
     required this.paidAt,
     this.note = '',
+    this.applyCurrency,
+    this.applyCents,
   });
+
+  String get appliedCurrency => applyCurrency ?? currency;
+  int get appliedCents => applyCents ?? amountCents;
+
+  Payment withApplied(String cur, int cents) => Payment(
+        id: id,
+        clientId: clientId,
+        orderId: orderId,
+        currency: currency,
+        amountCents: amountCents,
+        paidAt: paidAt,
+        note: note,
+        applyCurrency: cur,
+        applyCents: cents,
+      );
 
   Map<String, Object?> toMap() => {
         'id': id,
         'client_id': clientId,
         'order_id': orderId,
+        'currency': currency,
         'amount_cents': amountCents,
         'paid_at': dateToDb(paidAt),
         'note': note,
+        'apply_currency': applyCurrency,
+        'apply_cents': applyCents,
       };
 
   factory Payment.fromMap(Map<String, Object?> m) => Payment(
         id: m['id'] as int,
         clientId: m['client_id'] as int,
         orderId: m['order_id'] as int?,
+        currency: (m['currency'] as String?) ?? 'USD',
         amountCents: m['amount_cents'] as int,
         paidAt: dateFromDb(m['paid_at'] as String),
         note: (m['note'] as String?) ?? '',
+        applyCurrency: m['apply_currency'] as String?,
+        applyCents: m['apply_cents'] as int?,
       );
 }
 
 class Expense {
   final int? id;
   final String category;
+  final String currency;
   final int amountCents;
   final DateTime spentAt;
   final String note;
@@ -171,6 +207,7 @@ class Expense {
   const Expense({
     this.id,
     required this.category,
+    this.currency = 'USD',
     required this.amountCents,
     required this.spentAt,
     this.note = '',
@@ -179,6 +216,7 @@ class Expense {
   Map<String, Object?> toMap() => {
         'id': id,
         'category': category,
+        'currency': currency,
         'amount_cents': amountCents,
         'spent_at': dateToDb(spentAt),
         'note': note,
@@ -187,6 +225,7 @@ class Expense {
   factory Expense.fromMap(Map<String, Object?> m) => Expense(
         id: m['id'] as int,
         category: m['category'] as String,
+        currency: (m['currency'] as String?) ?? 'USD',
         amountCents: m['amount_cents'] as int,
         spentAt: dateFromDb(m['spent_at'] as String),
         note: (m['note'] as String?) ?? '',

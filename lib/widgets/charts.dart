@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 
+import '../currency.dart';
 import '../format.dart';
 import '../l10n.dart';
 import '../models.dart';
+import '../settings.dart';
 import '../store.dart';
 import '../theme.dart';
 
@@ -126,8 +128,17 @@ class MonthBars extends StatelessWidget {
     final v = cents / 100;
     final sign = v < 0 ? '−' : '';
     final a = v.abs();
-    if (a >= 1000) return '$sign\$${(a / 1000).toStringAsFixed(a >= 10000 ? 0 : 1)}k';
-    return '$sign\$${a.round()}';
+    String n;
+    if (a >= 1e6) {
+      n = '${(a / 1e6).toStringAsFixed(a >= 1e7 ? 0 : 1)}M';
+    } else if (a >= 1000) {
+      n = '${(a / 1000).toStringAsFixed(a >= 10000 ? 0 : 1)}k';
+    } else {
+      n = '${a.round()}';
+    }
+    final c = currencyOf(AppSettings.I.currency);
+    final sym = currencySymbol(c.code);
+    return c.prefix ? '$sign$sym$n' : '$sign$n $sym';
   }
 }
 

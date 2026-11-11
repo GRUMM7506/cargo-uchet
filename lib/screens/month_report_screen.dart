@@ -4,6 +4,7 @@ import '../format.dart';
 import '../l10n.dart';
 import '../models.dart';
 import '../services/export_service.dart';
+import '../services/rates.dart';
 import '../settings.dart';
 import '../store.dart';
 import '../theme.dart';
@@ -46,12 +47,16 @@ class _MonthReportScreenState extends State<MonthReportScreen> {
         final c = context.colors;
         // кто сколько внёс за месяц: оплаты + залоги
         final byClient = <int, int>{};
+        final main = AppSettings.I.currency;
         for (final p in store.payments) {
-          if (m.contains(p.paidAt)) byClient[p.clientId] = (byClient[p.clientId] ?? 0) + p.amountCents;
+          if (m.contains(p.paidAt)) {
+            byClient[p.clientId] = (byClient[p.clientId] ?? 0) + Fx.I.convert(p.amountCents, p.currency, main, p.paidAt);
+          }
         }
         for (final o in store.orders) {
           if (o.depositCents > 0 && m.contains(o.depositDate)) {
-            byClient[o.clientId] = (byClient[o.clientId] ?? 0) + o.depositCents;
+            byClient[o.clientId] =
+                (byClient[o.clientId] ?? 0) + Fx.I.convert(o.depositCents, o.currency, main, o.depositDate);
           }
         }
         final payers = byClient.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
@@ -136,7 +141,7 @@ class _MonthReportScreenState extends State<MonthReportScreen> {
                         Avatar(x.name, photo: x.photo, size: 32),
                         const SizedBox(width: 10),
                         Expanded(child: Text(x.name, style: context.tt.bodyMedium)),
-                        BalancePill(store.balanceOf(x.id!)),
+                        ClientBalancePill(x.id!),
                       ]),
                     ),
                 ]),

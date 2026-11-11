@@ -15,7 +15,10 @@ import '../format.dart';
 import '../l10n.dart';
 import '../models.dart';
 import '../store.dart';
+import '../settings.dart';
+import '../widgets/tiles.dart' show bucketsText;
 import 'photos.dart';
+import 'rates.dart';
 
 class ExportService {
   static final _s = AppStore.I;
@@ -63,6 +66,8 @@ class ExportService {
     book.rename(defName, t.sheetSummary);
 
     bool inRange(DateTime d) => month == null || month.contains(d);
+    final main = AppSettings.I.currency;
+    final fx = Fx.I;
 
     // --- Итоги ---
     final sum = book[t.sheetSummary];
@@ -71,26 +76,26 @@ class ExportService {
       final s = _s.summary(month);
       _row(sum, [t.reportFor(month.label)], bold: true);
       _row(sum, ['']);
-      _row(sum, ['${t.incomeFull}, \$', _usd(s.incomeCents)]);
-      _row(sum, ['  ${t.deposits}, \$', _usd(s.depositsCents)]);
-      _row(sum, ['  ${t.paymentsLabel}, \$', _usd(s.paymentsCents)]);
-      _row(sum, ['${t.expenseFull}, \$', _usd(s.expenseCents)]);
-      _row(sum, ['${s.profitCents >= 0 ? t.profit : t.loss}, \$', _usd(s.profitCents)], bold: true);
+      _row(sum, ['${t.incomeFull}, $main', _usd(s.incomeCents)]);
+      _row(sum, ['  ${t.deposits}, $main', _usd(s.depositsCents)]);
+      _row(sum, ['  ${t.paymentsLabel}, $main', _usd(s.paymentsCents)]);
+      _row(sum, ['${t.expenseFull}, $main', _usd(s.expenseCents)]);
+      _row(sum, ['${s.profitCents >= 0 ? t.profit : t.loss}, $main', _usd(s.profitCents)], bold: true);
       _row(sum, ['']);
       _row(sum, [t.ordersAccepted, s.ordersCount]);
-      _row(sum, ['${t.onSum}, \$', _usd(s.ordersCents)]);
+      _row(sum, ['${t.onSum}, $main', _usd(s.ordersCents)]);
       _row(sum, ['']);
-      _row(sum, ['${t.debtNow}, \$', _usd(_s.totalDebt)]);
+      _row(sum, ['${t.debtNow}, $main', _usd(_s.totalDebt)]);
       if (s.expensesByCategory.isNotEmpty) {
         _row(sum, ['']);
-        _row(sum, [t.byCategory, '\$'], bold: true);
+        _row(sum, [t.byCategory, main], bold: true);
         for (final e in s.expensesByCategory.entries) {
           _row(sum, [e.key, _usd(e.value)]);
         }
       }
     } else {
-      _row(sum, [t.monthCol, '${t.income} \$', '${t.expense} \$', '${t.profit} \$', t.ordersCountLabel,
-        '${t.onSum} \$', '${t.deposits} \$'], bold: true);
+      _row(sum, [t.monthCol, '${t.income} $main', '${t.expense} $main', '${t.profit} $main', t.ordersCountLabel,
+        '${t.onSum} $main', '${t.deposits} $main'], bold: true);
       var ti = 0, te = 0, to = 0, tc = 0, td = 0;
       for (final m in _s.months) {
         final s = _s.summary(m);
@@ -104,45 +109,58 @@ class ExportService {
       }
       _row(sum, [t.total, _usd(ti), _usd(te), _usd(ti - te), tc, _usd(to), _usd(td)], bold: true);
       _row(sum, ['']);
-      _row(sum, ['${t.debtNow}, \$', _usd(_s.totalDebt)]);
+      _row(sum, ['${t.debtNow}, $main', _usd(_s.totalDebt)]);
     }
 
     // --- Заказы ---
     final ord = book[t.sheetOrders];
-    _widths(ord, [12, 22, 28, 12, 12, 12, 12, 12, 12, 26]);
-    _row(ord, [t.accepted, t.client, t.work, '${t.price} \$', '${t.deposit} \$', '${t.paid} \$',
-      '${t.remaining} \$', t.due, t.doneDate, t.note], bold: true);
-    var oPrice = 0, oDep = 0, oPaid = 0, oRem = 0;
+    _widths(ord, [12, 22, 28, 8, 12, 12, 12, 12, 14, 12, 12, 26]);
+    _row(ord, [t.accepted, t.client, t.work, t.currencyCol, t.price, t.deposit, t.paid, t.remaining,
+      '${t.remaining}, $main', t.due, t.doneDate, t.note], bold: true);
+    var oRemMain = 0;
     for (final x in _s.orders.reversed.where((x) => inRange(x.acceptedAt))) {
       final paid = _s.paidForOrder(x.id!);
       final rem = _s.remainingOf(x);
-      oPrice += x.priceCents;
-      oDep += x.depositCents;
-      oPaid += paid;
-      oRem += rem;
+      final remMain = fx.convert(rem, x.currency, main);
+      oRemMain += remMain;
       _row(ord, [
         dateStr(x.acceptedAt),
         _s.clientName(x.clientId),
         x.description,
+        x.currency,
         _usd(x.priceCents),
         _usd(x.depositCents),
         _usd(paid),
         _usd(rem),
+        _usd(remMain),
         x.dueAt == null ? '' : dateStr(x.dueAt!),
         x.doneAt == null ? '' : dateStr(x.doneAt!),
         x.note,
       ]);
     }
-    _row(ord, [t.total, '', '', _usd(oPrice), _usd(oDep), _usd(oPaid), _usd(oRem)], bold: true);
+    _row(ord, [t.total, '', '', '', '', '', '', '', _usd(oRemMain)], bold: true);
 
     // --- Поступления (залоги + оплаты) ---
     final pay = book[t.sheetPayments];
-    _widths(pay, [12, 22, 14, 12, 28, 30]);
-    _row(pay, [t.date, t.client, t.typeCol, '${t.amount} \$', t.work, t.note], bold: true);
+    _widths(pay, [12, 22, 14, 12, 8, 14, 28, 30]);
+    _row(pay, [t.date, t.client, t.typeCol, t.amount, t.currencyCol, '${t.amount}, $main', t.work, t.note], bold: true);
     final rows = <(DateTime, List<Object?>, int)>[
       for (final o in _s.orders)
         if (o.depositCents > 0 && inRange(o.depositDate))
-          (o.depositDate, [dateStr(o.depositDate), _s.clientName(o.clientId), t.deposit, _usd(o.depositCents), o.description, ''], o.depositCents),
+          (
+            o.depositDate,
+            [
+              dateStr(o.depositDate),
+              _s.clientName(o.clientId),
+              t.deposit,
+              _usd(o.depositCents),
+              o.currency,
+              _usd(fx.convert(o.depositCents, o.currency, main, o.depositDate)),
+              o.description,
+              '',
+            ],
+            fx.convert(o.depositCents, o.currency, main, o.depositDate)
+          ),
       for (final x in _s.payments)
         if (inRange(x.paidAt))
           (
@@ -152,10 +170,12 @@ class ExportService {
               _s.clientName(x.clientId),
               t.payment,
               _usd(x.amountCents),
+              x.currency,
+              _usd(fx.convert(x.amountCents, x.currency, main, x.paidAt)),
               x.orderId == null ? '' : (_s.orderById(x.orderId!)?.description ?? ''),
               x.note,
             ],
-            x.amountCents
+            fx.convert(x.amountCents, x.currency, main, x.paidAt)
           ),
     ]..sort((a, b) => a.$1.compareTo(b.$1));
     var payTotal = 0;
@@ -163,30 +183,32 @@ class ExportService {
       payTotal += r.$3;
       _row(pay, r.$2);
     }
-    _row(pay, [t.total, '', '', _usd(payTotal)], bold: true);
+    _row(pay, [t.total, '', '', '', '', _usd(payTotal)], bold: true);
 
     // --- Расходы ---
     final exp = book[t.sheetExpenses];
-    _widths(exp, [12, 22, 12, 34]);
-    _row(exp, [t.date, t.category, '${t.amount} \$', t.comment], bold: true);
+    _widths(exp, [12, 22, 12, 8, 14, 34]);
+    _row(exp, [t.date, t.category, t.amount, t.currencyCol, '${t.amount}, $main', t.comment], bold: true);
     var expTotal = 0;
     for (final x in _s.expenses.reversed.where((x) => inRange(x.spentAt))) {
-      expTotal += x.amountCents;
-      _row(exp, [dateStr(x.spentAt), x.category, _usd(x.amountCents), x.note]);
+      final v = fx.convert(x.amountCents, x.currency, main, x.spentAt);
+      expTotal += v;
+      _row(exp, [dateStr(x.spentAt), x.category, _usd(x.amountCents), x.currency, _usd(v), x.note]);
     }
-    _row(exp, [t.total, '', _usd(expTotal)], bold: true);
+    _row(exp, [t.total, '', '', '', _usd(expTotal)], bold: true);
 
-    // --- Клиенты (балансы на сегодня) ---
+    // --- Клиенты (долги на сегодня) ---
     final cl = book[t.sheetClients];
-    _widths(cl, [24, 16, 16, 14, 14, 20]);
-    _row(cl, [t.client, t.phone, '${t.ordersTotal} \$', '${t.deposits} \$', '${t.paymentsLabel} \$', '${t.balanceCol} \$'],
-        bold: true);
+    _widths(cl, [24, 16, 30, 20]);
+    _row(cl, [t.client, t.phone, t.byCurrencies, '${t.balanceCol}, $main'], bold: true);
     for (final c in _s.clients) {
-      final os = _s.ordersOf(c.id!);
-      final o = os.fold(0, (a, x) => a + x.priceCents);
-      final d = os.fold(0, (a, x) => a + x.depositCents);
-      final pd = _s.paymentsOf(c.id!).fold(0, (a, x) => a + x.amountCents);
-      _row(cl, [c.name, c.phone, _usd(o), _usd(d), _usd(pd), _usd(_s.balanceOf(c.id!))]);
+      final b = _s.bucketsOf(c.id!);
+      _row(cl, [
+        c.name,
+        c.phone,
+        b.entries.map((e) => '${e.value < 0 ? '−' : ''}${money(e.value.abs(), cur: e.key)}').join('; '),
+        _usd(_s.balanceOf(c.id!)),
+      ]);
     }
 
     final bytes = book.encode();
@@ -237,14 +259,16 @@ class ExportService {
   static Future<void> pdf(YearMonth month) async {
     final s = _s.summary(month);
     final doc = pw.Document(theme: await _pdfTheme());
+    final logo = pw.MemoryImage((await rootBundle.load('assets/images/logo.png')).buffer.asUint8List());
     final ords = _s.orders.reversed.where((x) => month.contains(x.acceptedAt)).toList();
     final exps = _s.expenses.reversed.where((x) => month.contains(x.spentAt)).toList();
     final incomes = <(DateTime, List<String>)>[
       for (final o in _s.orders)
         if (o.depositCents > 0 && month.contains(o.depositDate))
-          (o.depositDate, [dateStr(o.depositDate), _s.clientName(o.clientId), t.deposit, money(o.depositCents)]),
+          (o.depositDate, [dateStr(o.depositDate), _s.clientName(o.clientId), t.deposit, money(o.depositCents, cur: o.currency)]),
       for (final x in _s.payments)
-        if (month.contains(x.paidAt)) (x.paidAt, [dateStr(x.paidAt), _s.clientName(x.clientId), t.payment, money(x.amountCents)]),
+        if (month.contains(x.paidAt))
+          (x.paidAt, [dateStr(x.paidAt), _s.clientName(x.clientId), t.payment, money(x.amountCents, cur: x.currency)]),
     ]..sort((a, b) => a.$1.compareTo(b.$1));
     final debtors = _s.debtors;
 
@@ -257,7 +281,14 @@ class ExportService {
             style: const pw.TextStyle(fontSize: 8, color: PdfColors.grey600)),
       ),
       build: (ctx) => [
-        pw.Text(t.reportFor(month.label), style: pw.TextStyle(fontSize: 20, fontWeight: pw.FontWeight.bold)),
+        pw.Row(children: [
+          pw.Image(logo, width: 34, height: 34),
+          pw.SizedBox(width: 10),
+          pw.Expanded(
+            child: pw.Text(t.reportFor(month.label), style: pw.TextStyle(fontSize: 20, fontWeight: pw.FontWeight.bold)),
+          ),
+          pw.Text(AppSettings.I.currency, style: const pw.TextStyle(fontSize: 11, color: PdfColors.grey700)),
+        ]),
         pw.SizedBox(height: 10),
         pw.Container(
           padding: const pw.EdgeInsets.all(10),
@@ -283,9 +314,9 @@ class ExportService {
                 dateStr(x.acceptedAt),
                 _s.clientName(x.clientId),
                 x.description,
-                money(x.priceCents),
-                money(x.depositCents),
-                money(_s.remainingOf(x)),
+                money(x.priceCents, cur: x.currency),
+                money(x.depositCents, cur: x.currency),
+                money(_s.remainingOf(x), cur: x.currency),
                 x.isDone ? t.done : (x.dueAt == null ? '' : dateStr(x.dueAt!)),
               ]
           ],
@@ -296,7 +327,7 @@ class ExportService {
         _h('${t.tabExpenses} (${exps.length})'),
         _table(
           [t.date, t.category, t.amount, t.comment],
-          [for (final x in exps) [dateStr(x.spentAt), x.category, money(x.amountCents), x.note]],
+          [for (final x in exps) [dateStr(x.spentAt), x.category, money(x.amountCents, cur: x.currency), x.note]],
           right: {2},
         ),
         if (s.expensesByCategory.isNotEmpty) ...[
@@ -307,7 +338,10 @@ class ExportService {
         _h(t.debtorsToday),
         _table(
           [t.client, t.phone, t.debt],
-          [for (final c in debtors) [c.name, c.phone, money(_s.balanceOf(c.id!))]],
+          [
+            for (final c in debtors)
+              [c.name, c.phone, _s.bucketsOf(c.id!).length == 1 ? bucketsText(_s.bucketsOf(c.id!)) : '≈ ${money(_s.balanceOf(c.id!))}']
+          ],
           right: {2},
         ),
       ],

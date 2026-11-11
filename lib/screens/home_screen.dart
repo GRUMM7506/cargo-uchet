@@ -48,6 +48,7 @@ class _HomeScreenState extends State<HomeScreen> {
           appBar: AppBar(
             title: Text(t.appTitle),
             actions: [
+              CurrencyButton(value: AppSettings.I.currency, onChanged: AppSettings.I.setCurrency),
               IconButton(
                 tooltip: t.monthReport,
                 icon: const Icon(Icons.insert_chart_outlined_rounded),
