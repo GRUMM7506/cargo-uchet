@@ -330,6 +330,20 @@ abstract class S {
   String get cleared;
   String get yesDelete;
   List<(String, String)> get helpSections;
+
+  // --- отчёт: заказы и долг, меню ---
+  String get ordersAndDebt;
+  String ordersSumCount(int n);
+  String get receivedMoney;
+  String get debtLeft;
+  String get overpaidLine;
+  String get moneySection;
+  String get debtFormula;
+  String get navHome;
+  String get navClients;
+  String get navOrders;
+  String get navExpenses;
+  String get navReports;
 }
 
 // ============================================================================
@@ -963,6 +977,32 @@ class _Ru extends S {
         ('Изменить или удалить', 'Нажмите на запись, чтобы изменить её. Удерживайте палец — появится меню «Изменить / Удалить». Смахните запись влево — удалить.'),
         ('Резервная копия', 'Настройки → Резервная копия: файл с данными и фото отправьте себе в Telegram. На новом телефоне: Настройки → Восстановить из копии.'),
       ];
+
+  // --- отчёт: заказы и долг, меню ---
+  @override
+  String get ordersAndDebt => 'Заказы и долг';
+  @override
+  String ordersSumCount(int n) => 'Сумма заказов ($n шт)';
+  @override
+  String get receivedMoney => 'Получено (залоги + оплаты)';
+  @override
+  String get debtLeft => 'Клиенты ещё должны';
+  @override
+  String get overpaidLine => 'Переплаты клиентов';
+  @override
+  String get moneySection => 'Деньги';
+  @override
+  String get debtFormula => 'Долг = сумма заказов − полученные деньги';
+  @override
+  String get navHome => 'Главная';
+  @override
+  String get navClients => 'Клиенты';
+  @override
+  String get navOrders => 'Заказы';
+  @override
+  String get navExpenses => 'Расходы';
+  @override
+  String get navReports => 'Отчёты';
 }
 
 // ============================================================================
@@ -1588,4 +1628,30 @@ class _Uz extends S {
         ('Tahrirlash va oʻchirish', 'Yozuvni oʻzgartirish uchun ustiga bosing. Barmogʻingizni bosib tursangiz, «Tahrirlash / Oʻchirish» menyusi chiqadi. Yozuvni chapga sursangiz — oʻchiriladi.'),
         ('Zaxira nusxa', 'Sozlamalar → Zaxira nusxa: maʼlumot va rasmlar faylini oʻzingizga Telegramga yuboring. Yangi telefonda: Sozlamalar → Nusxadan tiklash.'),
       ];
+
+  // --- отчёт: заказы и долг, меню ---
+  @override
+  String get ordersAndDebt => 'Buyurtmalar va qarz';
+  @override
+  String ordersSumCount(int n) => 'Buyurtmalar summasi ($n ta)';
+  @override
+  String get receivedMoney => 'Olingan pul (zaklad + toʻlov)';
+  @override
+  String get debtLeft => 'Mijozlarda qolgan qarz';
+  @override
+  String get overpaidLine => 'Mijozlarning ortiqcha toʻlovi';
+  @override
+  String get moneySection => 'Pul';
+  @override
+  String get debtFormula => 'Qarz = buyurtmalar summasi − olingan pul';
+  @override
+  String get navHome => 'Asosiy';
+  @override
+  String get navClients => 'Mijozlar';
+  @override
+  String get navOrders => 'Buyurtma';
+  @override
+  String get navExpenses => 'Xarajat';
+  @override
+  String get navReports => 'Hisobot';
 }

@@ -24,11 +24,13 @@ class ReportsScreen extends StatelessWidget {
       listenable: Listenable.merge([store, AppSettings.I]),
       builder: (context, _) {
         final months = store.months;
-        var totalIncome = 0, totalExpense = 0;
+        var totalIncome = 0, totalExpense = 0, totalOrders = 0, ordersCount = 0;
         for (final m in months) {
           final s = store.summary(m);
           totalIncome += s.incomeCents;
           totalExpense += s.expenseCents;
+          totalOrders += s.ordersCents;
+          ordersCount += s.ordersCount;
         }
         final totalProfit = totalIncome - totalExpense;
         final c = context.colors;
@@ -56,14 +58,26 @@ class ReportsScreen extends StatelessWidget {
               SectionCard(title: t.last6, children: [MonthBars(onTap: (m) => _openMonth(context, m))]),
               const SizedBox(height: 12),
               SectionCard(
-                title: t.allTime,
+                title: '${t.allTime} · ${t.ordersAndDebt}',
+                children: [
+                  KeyValue(t.ordersSumCount(ordersCount), money(totalOrders)),
+                  KeyValue('− ${t.receivedMoney}', money(totalIncome), color: c.income),
+                  if (store.totalOverpaid > 0) KeyValue('+ ${t.overpaidLine}', money(store.totalOverpaid), color: c.income),
+                  const Divider(height: 18),
+                  KeyValue(t.debtLeft, money(store.totalDebt), color: c.debt, strong: true),
+                  const SizedBox(height: 4),
+                  Text(t.debtFormula, style: context.tt.bodySmall?.copyWith(color: c.muted)),
+                ],
+              ),
+              const SizedBox(height: 12),
+              SectionCard(
+                title: '${t.allTime} · ${t.moneySection}',
                 children: [
                   KeyValue(t.income, money(totalIncome), color: c.income),
                   KeyValue(t.expense, money(totalExpense), color: c.expense),
                   const Divider(height: 18),
                   KeyValue(totalProfit >= 0 ? t.profit : t.loss, money(totalProfit),
                       color: totalProfit >= 0 ? c.income : c.expense, strong: true),
-                  KeyValue(t.debtNow, money(store.totalDebt), color: c.debt),
                 ],
               ),
               SectionHeader(t.byMonths, padding: const EdgeInsets.fromLTRB(4, 22, 4, 10)),
@@ -112,7 +126,7 @@ class _MonthCard extends StatelessWidget {
               Row(children: [
                 _mini(context, t.income, money(s.incomeCents), c.income),
                 _mini(context, t.expense, money(s.expenseCents), c.expense),
-                _mini(context, t.ordersCountLabel, '${s.ordersCount}', null),
+                _mini(context, t.ordersCountLabel, '${s.ordersCount} · ${money(s.ordersCents)}', null),
               ]),
             ],
           ),

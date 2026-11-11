@@ -268,7 +268,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   child: Image.asset('assets/images/logo.png', width: 56, height: 56),
                 ),
                 const SizedBox(height: 8),
-                Text('${t.appTitle} · ${t.versionLabel} 2.3',
+                Text('${t.appTitle} · ${t.versionLabel} 2.4',
                     style: context.tt.bodySmall?.copyWith(color: context.colors.muted)),
               ]),
             ),

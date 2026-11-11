@@ -151,27 +151,27 @@ class _HomeShellState extends State<HomeShell> {
           NavigationDestination(
             icon: const Icon(Icons.space_dashboard_outlined),
             selectedIcon: const Icon(Icons.space_dashboard_rounded),
-            label: t.tabHome,
+            label: t.navHome,
           ),
           NavigationDestination(
             icon: const Icon(Icons.people_outline_rounded),
             selectedIcon: const Icon(Icons.people_rounded),
-            label: t.tabClients,
+            label: t.navClients,
           ),
           NavigationDestination(
             icon: const Icon(Icons.handyman_outlined),
             selectedIcon: const Icon(Icons.handyman_rounded),
-            label: t.tabOrders,
+            label: t.navOrders,
           ),
           NavigationDestination(
             icon: const Icon(Icons.account_balance_wallet_outlined),
             selectedIcon: const Icon(Icons.account_balance_wallet_rounded),
-            label: t.tabExpenses,
+            label: t.navExpenses,
           ),
           NavigationDestination(
             icon: const Icon(Icons.insert_chart_outlined_rounded),
             selectedIcon: const Icon(Icons.insert_chart_rounded),
-            label: t.tabReports,
+            label: t.navReports,
           ),
         ],
       ),
