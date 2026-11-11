@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../format.dart';
+import '../l10n.dart';
 import '../models.dart';
 import '../services/export_service.dart';
 import '../settings.dart';
@@ -30,18 +31,19 @@ class ReportsScreen extends StatelessWidget {
           totalExpense += s.expenseCents;
         }
         final totalProfit = totalIncome - totalExpense;
+        final c = context.colors;
         return Scaffold(
           appBar: AppBar(
-            title: const Text('Отчёты'),
+            title: Text(t.tabReports),
             actions: [
               IconButton(
-                tooltip: 'Excel за всё время',
+                tooltip: t.excelAll,
                 icon: const Icon(Icons.table_view_outlined),
                 onPressed: () async {
                   try {
                     await ExportService.excel();
                   } catch (e) {
-                    if (context.mounted) toast(context, 'Ошибка: $e');
+                    if (context.mounted) toast(context, t.error(e));
                   }
                 },
               ),
@@ -51,22 +53,20 @@ class ReportsScreen extends StatelessWidget {
           body: ListView(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 32),
             children: [
-              SectionCard(
-                title: 'Последние 6 месяцев',
-                children: [MonthBars(onTap: (m) => _openMonth(context, m))],
-              ),
+              SectionCard(title: t.last6, children: [MonthBars(onTap: (m) => _openMonth(context, m))]),
               const SizedBox(height: 12),
               SectionCard(
-                title: 'За всё время',
+                title: t.allTime,
                 children: [
-                  KeyValue('Пришло', money(totalIncome), color: context.colors.income),
-                  KeyValue('Потрачено', money(totalExpense), color: context.colors.expense),
+                  KeyValue(t.income, money(totalIncome), color: c.income),
+                  KeyValue(t.expense, money(totalExpense), color: c.expense),
                   const Divider(height: 18),
-                  KeyValue(totalProfit >= 0 ? 'Прибыль' : 'Убыток', money(totalProfit),
-                      color: totalProfit >= 0 ? context.colors.income : context.colors.expense, strong: true),
+                  KeyValue(totalProfit >= 0 ? t.profit : t.loss, money(totalProfit),
+                      color: totalProfit >= 0 ? c.income : c.expense, strong: true),
+                  KeyValue(t.debtNow, money(store.totalDebt), color: c.debt),
                 ],
               ),
-              const SectionHeader('По месяцам', padding: EdgeInsets.fromLTRB(4, 22, 4, 10)),
+              SectionHeader(t.byMonths, padding: const EdgeInsets.fromLTRB(4, 22, 4, 10)),
               for (final m in months) ...[
                 _MonthCard(month: m, onTap: () => _openMonth(context, m)),
                 const SizedBox(height: 10),
@@ -90,7 +90,6 @@ class _MonthCard extends StatelessWidget {
     final s = AppStore.I.summary(month);
     final c = context.colors;
     final isCurrent = month == YearMonth.now();
-    final set = AppSettings.I;
     return Card(
       clipBehavior: Clip.antiAlias,
       child: InkWell(
@@ -104,21 +103,16 @@ class _MonthCard extends StatelessWidget {
                 Text(month.label, style: context.tt.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
                 if (isCurrent) ...[
                   const SizedBox(width: 8),
-                  Pill('текущий', color: context.cs.primary, background: context.cs.primaryContainer.withValues(alpha: 0.6)),
+                  Pill(t.current, color: context.cs.primary, background: context.cs.primaryContainer.withValues(alpha: 0.6)),
                 ],
                 const Spacer(),
                 Text(money(s.profitCents), style: amountStyle(18, color: s.profitCents >= 0 ? c.income : c.expense)),
               ]),
               const SizedBox(height: 12),
               Row(children: [
-                _mini(context, 'Пришло', money(s.incomeCents), c.income),
-                _mini(context, 'Потрачено', money(s.expenseCents), c.expense),
-                _mini(
-                  context,
-                  'Заказы',
-                  '${s.ordersCount}${set.show(OrderField.weight) && s.weightKg > 0 ? ' · ${kg(s.weightKg)}' : ''}',
-                  null,
-                ),
+                _mini(context, t.income, money(s.incomeCents), c.income),
+                _mini(context, t.expense, money(s.expenseCents), c.expense),
+                _mini(context, t.ordersCountLabel, '${s.ordersCount}', null),
               ]),
             ],
           ),

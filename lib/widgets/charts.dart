@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../format.dart';
+import '../l10n.dart';
 import '../models.dart';
 import '../store.dart';
 import '../theme.dart';
@@ -8,10 +9,9 @@ import '../theme.dart';
 /// Столбики «пришло / потрачено» за последние [count] месяцев.
 class MonthBars extends StatelessWidget {
   final int count;
-  final YearMonth? selected;
   final ValueChanged<YearMonth>? onTap;
 
-  const MonthBars({super.key, this.count = 6, this.selected, this.onTap});
+  const MonthBars({super.key, this.count = 6, this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -29,6 +29,7 @@ class MonthBars extends StatelessWidget {
       if (s.expenseCents > maxV) maxV = s.expenseCents;
     }
     final c = context.colors;
+    final current = YearMonth.now();
 
     return Column(children: [
       SizedBox(
@@ -45,7 +46,7 @@ class MonthBars extends StatelessWidget {
                     margin: const EdgeInsets.symmetric(horizontal: 3),
                     padding: const EdgeInsets.fromLTRB(4, 6, 4, 0),
                     decoration: BoxDecoration(
-                      color: s.month == selected ? context.cs.primaryContainer.withValues(alpha: 0.45) : null,
+                      color: s.month == current ? context.cs.primaryContainer.withValues(alpha: 0.45) : null,
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Column(
@@ -89,17 +90,17 @@ class MonthBars extends StatelessWidget {
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontSize: 12,
-                fontWeight: s.month == selected ? FontWeight.w700 : FontWeight.w500,
-                color: s.month == selected ? context.cs.primary : c.muted,
+                fontWeight: s.month == current ? FontWeight.w700 : FontWeight.w500,
+                color: s.month == current ? context.cs.primary : c.muted,
               ),
             ),
           ),
       ]),
       const SizedBox(height: 10),
       Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-        _legend(context, c.income, 'Пришло'),
+        _legend(context, c.income, t.income),
         const SizedBox(width: 18),
-        _legend(context, c.expense, 'Потрачено'),
+        _legend(context, c.expense, t.expense),
       ]),
     ]);
   }

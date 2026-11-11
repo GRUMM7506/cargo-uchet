@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 
 import '../format.dart';
 import '../forms.dart';
+import '../l10n.dart';
 import '../models.dart';
+import '../screens/order_screen.dart';
 import '../settings.dart';
 import '../store.dart';
 import '../theme.dart';
@@ -14,8 +16,14 @@ final _store = AppStore.I;
 class GroupCard extends StatelessWidget {
   final List<Widget> children;
   final EdgeInsetsGeometry margin;
+  final double indent;
 
-  const GroupCard({super.key, required this.children, this.margin = const EdgeInsets.symmetric(horizontal: 16)});
+  const GroupCard({
+    super.key,
+    required this.children,
+    this.margin = const EdgeInsets.symmetric(horizontal: 16),
+    this.indent = 72,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -25,7 +33,7 @@ class GroupCard extends StatelessWidget {
         clipBehavior: Clip.antiAlias,
         child: Column(children: [
           for (var i = 0; i < children.length; i++) ...[
-            if (i > 0) const Divider(indent: 72),
+            if (i > 0) Divider(indent: indent),
             children[i],
           ],
         ]),
@@ -35,7 +43,7 @@ class GroupCard extends StatelessWidget {
 }
 
 /// Базовая строка списка: значок | заголовок + подзаголовок | справа.
-class _Row extends StatelessWidget {
+class ListRow extends StatelessWidget {
   final Widget leading;
   final String title;
   final String? subtitle;
@@ -44,7 +52,8 @@ class _Row extends StatelessWidget {
   final VoidCallback? onTap;
   final VoidCallback? onLongPress;
 
-  const _Row({
+  const ListRow({
+    super.key,
     required this.leading,
     required this.title,
     this.subtitle,
@@ -61,7 +70,7 @@ class _Row extends StatelessWidget {
       onLongPress: onLongPress,
       child: Padding(
         padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
-        child: Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
+        child: Row(children: [
           leading,
           const SizedBox(width: 14),
           Expanded(
@@ -98,19 +107,40 @@ class PaymentTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = context.colors;
     final order = p.orderId == null ? null : _store.orderById(p.orderId!);
+    final client = _store.clientById(p.clientId);
     final sub = <String>[
       if (showDate) shortDay(p.paidAt),
-      if (order != null) 'за «${order.title}»',
+      if (order != null) t.forOrder(order.title),
       if (p.note.isNotEmpty) p.note,
     ].join(' · ');
-    return _Row(
+    return ListRow(
       leading: showClient
-          ? Avatar(_store.clientName(p.clientId))
+          ? Avatar(client?.name ?? '—', photo: client?.photo)
           : IconBadge(Icons.south_west_rounded, color: c.income, background: c.incomeBg),
-      title: showClient ? _store.clientName(p.clientId) : 'Оплата',
-      subtitle: showClient && sub.isEmpty ? 'Оплата' : sub,
+      title: showClient ? (client?.name ?? '—') : t.payment,
+      subtitle: showClient && sub.isEmpty ? t.payment : sub,
       trailing: Text(money(p.amountCents, plus: true), style: amountStyle(15, color: c.income)),
       onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => PaymentFormPage(payment: p))),
+    );
+  }
+}
+
+/// Залог по заказу — тоже приход денег.
+class DepositTile extends StatelessWidget {
+  final Order o;
+
+  const DepositTile(this.o, {super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    final client = _store.clientById(o.clientId);
+    return ListRow(
+      leading: Avatar(client?.name ?? '—', photo: client?.photo),
+      title: client?.name ?? '—',
+      subtitle: '${t.deposit} · ${o.title}',
+      trailing: Text(money(o.depositCents, plus: true), style: amountStyle(15, color: c.income)),
+      onTap: () => OrderScreen.open(context, o.id!),
     );
   }
 }
@@ -124,7 +154,7 @@ class ExpenseTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = context.colors;
-    return _Row(
+    return ListRow(
       leading: IconBadge(categoryIcon(e.category), color: c.expense, background: c.expenseBg),
       title: e.category,
       subtitle: [if (showDate) shortDay(e.spentAt), if (e.note.isNotEmpty) e.note].join(' · '),
@@ -136,25 +166,26 @@ class ExpenseTile extends StatelessWidget {
 
 IconData categoryIcon(String category) {
   final c = category.toLowerCase();
-  if (c.contains('груз')) return Icons.inventory_2_outlined;
-  if (c.contains('китай') || c.contains('доставк')) return Icons.flight_takeoff_rounded;
-  if (c.contains('машин') || c.contains('бензин') || c.contains('топлив')) return Icons.local_shipping_outlined;
-  if (c.contains('тамож')) return Icons.verified_user_outlined;
-  if (c.contains('склад') || c.contains('аренд')) return Icons.warehouse_outlined;
-  if (c.contains('связ') || c.contains('телефон')) return Icons.phone_iphone_rounded;
-  if (c.contains('еда') || c.contains('обед')) return Icons.restaurant_outlined;
+  bool has(List<String> words) => words.any(c.contains);
+  if (has(['китай', 'xitoy', 'хитой'])) return Icons.flight_takeoff_rounded;
+  if (has(['груз', 'yuk', 'доставк', 'yetkaz'])) return Icons.inventory_2_outlined;
+  if (has(['машин', 'mashin', 'бензин', 'benzin', 'топлив', 'yoqilgʻi'])) return Icons.local_shipping_outlined;
+  if (has(['материал', 'material'])) return Icons.construction_rounded;
+  if (has(['аренд', 'ijara', 'склад', 'ombor'])) return Icons.warehouse_outlined;
+  if (has(['зарплат', 'ish haqi', 'oylik', 'maosh'])) return Icons.groups_outlined;
+  if (has(['тамож', 'bojxona'])) return Icons.verified_user_outlined;
+  if (has(['связ', 'телефон', 'aloqa', 'telefon'])) return Icons.phone_iphone_rounded;
+  if (has(['еда', 'обед', 'ovqat', 'tushlik'])) return Icons.restaurant_outlined;
   return Icons.receipt_long_outlined;
 }
 
-/// Короткие метки заказа: «12.5 кг», «$3.5/кг», «3 шт».
-List<String> orderMeta(Order o) {
-  final s = AppSettings.I;
-  return [
-    if (s.show(OrderField.weight) && o.weightKg != null) kg(o.weightKg!),
-    if (s.show(OrderField.quantity) && o.quantity != null) '${o.quantity} шт',
-    if (s.show(OrderField.pricing) && o.pricing != Pricing.fixed && o.rateCents != null)
-      '${money(o.rateCents!)}/${o.pricing == Pricing.perKg ? 'кг' : 'шт'}',
-  ];
+/// Подпись к сроку сдачи: «осталось 3 дн.» / «просрочен на 2 дн.» / «сдать сегодня».
+String? dueText(Order o) {
+  if (o.dueAt == null || o.isDone) return null;
+  final d = o.dueAt!.difference(today()).inDays;
+  if (d == 0) return t.dueToday;
+  if (d < 0) return t.daysOverdue(-d);
+  return t.daysLeft(d);
 }
 
 class OrderTile extends StatelessWidget {
@@ -169,46 +200,42 @@ class OrderTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final s = AppSettings.I;
-    final cs = context.cs;
     final c = context.colors;
-    final desc = <String>[
-      if (showClient && s.show(OrderField.description) && o.description.isNotEmpty) o.description,
-      if (s.show(OrderField.code) && o.code.isNotEmpty) '№ ${o.code}',
-    ].join(' · ');
-    final dates = <String>[
-      'принят ${shortDay(o.acceptedAt)}',
-      if (s.show(OrderField.done) && o.doneAt != null) 'выполнен ${shortDay(o.doneAt!)}',
-    ].join(' · ');
-    final meta = orderMeta(o);
-    final clientName = previewName ?? _store.clientName(o.clientId);
+    final client = previewName == null ? _store.clientById(o.clientId) : null;
+    final clientName = previewName ?? client?.name ?? '—';
+    final remaining = previewName != null ? o.priceCents - o.depositCents : _store.remainingOf(o);
+    final showPhoto = s.show(OrderField.photo);
 
-    return _Row(
-      leading: showClient
-          ? Avatar(clientName)
-          : IconBadge(
-              o.isDone ? Icons.task_alt_rounded : Icons.local_shipping_outlined,
-              color: o.isDone ? c.income : cs.primary,
-              background: o.isDone ? c.incomeBg : cs.primaryContainer.withValues(alpha: 0.6),
-            ),
-      title: showClient ? clientName : (s.show(OrderField.description) ? o.title : 'Заказ'),
-      subtitle: [if (desc.isNotEmpty) desc, dates].join('\n'),
-      meta: meta.isEmpty
-          ? null
-          : Wrap(spacing: 6, runSpacing: 4, children: [
-              for (final m in meta)
-                Pill(m, color: cs.onSurfaceVariant, background: cs.surfaceContainerHigh),
-            ]),
-      trailing: Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-        Text(money(o.amountCents), style: amountStyle(15, color: cs.onSurface)),
-        if (s.show(OrderField.done)) ...[const SizedBox(height: 6), StatusPill(o.isDone)],
+    final lines = <String>[
+      if (showClient && s.show(OrderField.description) && o.description.isNotEmpty) o.description,
+      [
+        shortDay(o.acceptedAt),
+        if (s.show(OrderField.due) && dueText(o) != null) dueText(o)!,
+      ].join(' · '),
+    ];
+
+    return ListRow(
+      leading: showPhoto
+          ? (o.photo != null || !showClient ? OrderThumb(o) : Avatar(clientName, photo: client?.photo, size: 52))
+          : Avatar(clientName, photo: client?.photo),
+      title: showClient ? clientName : (s.show(OrderField.description) ? o.title : t.order),
+      subtitle: lines.join('\n'),
+      meta: Wrap(spacing: 6, runSpacing: 4, children: [
+        if (s.show(OrderField.done) || o.isOverdue) StatusPill(o),
+        RemainingPill(remaining),
       ]),
-      onTap: previewName != null
-          ? null
-          : () => Navigator.push(context, MaterialPageRoute(builder: (_) => OrderFormPage(order: o))),
+      trailing: Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+        Text(money(o.priceCents), style: amountStyle(15, color: context.cs.onSurface)),
+        if (s.show(OrderField.deposit) && o.depositCents > 0) ...[
+          const SizedBox(height: 4),
+          Text('${t.deposit} ${money(o.depositCents)}', style: context.tt.bodySmall?.copyWith(color: c.muted)),
+        ],
+      ]),
+      onTap: previewName != null ? null : () => OrderScreen.open(context, o.id!),
       onLongPress: previewName == null && s.show(OrderField.done)
           ? () async {
               await _store.setOrderDone(o, !o.isDone);
-              if (context.mounted) toast(context, o.isDone ? 'Заказ снова в работе' : 'Заказ выполнен');
+              if (context.mounted) toast(context, o.isDone ? t.orderBackInWork : t.orderDone);
             }
           : null,
     );
@@ -226,10 +253,10 @@ class ClientTile extends StatelessWidget {
     final active = _store.ordersOf(client.id!).where((o) => !o.isDone).length;
     final sub = <String>[
       if (client.phone.isNotEmpty) client.phone,
-      if (active > 0 && AppSettings.I.show(OrderField.done)) 'в работе: $active',
+      if (active > 0 && AppSettings.I.show(OrderField.done)) t.activeOrders(active),
     ].join(' · ');
-    return _Row(
-      leading: Avatar(client.name),
+    return ListRow(
+      leading: Avatar(client.name, photo: client.photo),
       title: client.name,
       subtitle: sub.isEmpty ? null : sub,
       trailing: BalancePill(_store.balanceOf(client.id!)),
@@ -238,7 +265,7 @@ class ClientTile extends StatelessWidget {
   }
 }
 
-/// Список операций, сгруппированный по дням (для главной и расходов).
+/// Список операций, сгруппированный по дням.
 class DayGroupedList extends StatelessWidget {
   final List<(DateTime, Widget)> items;
 

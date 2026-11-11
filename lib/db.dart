@@ -3,7 +3,7 @@ import 'package:sqflite/sqflite.dart';
 
 class AppDatabase {
   static const fileName = 'cargo_uchet.db';
-  static const version = 2;
+  static const version = 3;
 
   static Future<String> path() async => p.join(await getDatabasesPath(), fileName);
 
@@ -15,9 +15,11 @@ class AppDatabase {
       onCreate: (db, v) async {
         await _createV1(db);
         await _upgradeTo2(db);
+        await _upgradeTo3(db);
       },
       onUpgrade: (db, from, to) async {
         if (from < 2) await _upgradeTo2(db);
+        if (from < 3) await _upgradeTo3(db);
       },
     );
   }
@@ -71,6 +73,16 @@ class AppDatabase {
     await db.execute("ALTER TABLE orders ADD COLUMN code TEXT NOT NULL DEFAULT ''");
     await db.execute('ALTER TABLE clients ADD COLUMN rate_kg_cents INTEGER');
     await db.execute('CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)');
+  }
+
+  /// v3: залог, срок сдачи, фото у заказов и клиентов.
+  /// (Поля веса и тарифов из v2 остаются в базе, но больше не используются.)
+  static Future<void> _upgradeTo3(Database db) async {
+    await db.execute('ALTER TABLE orders ADD COLUMN deposit_cents INTEGER NOT NULL DEFAULT 0');
+    await db.execute('ALTER TABLE orders ADD COLUMN deposit_at TEXT');
+    await db.execute('ALTER TABLE orders ADD COLUMN due_at TEXT');
+    await db.execute('ALTER TABLE orders ADD COLUMN photo TEXT');
+    await db.execute('ALTER TABLE clients ADD COLUMN photo TEXT');
   }
 
   /// Проверяет, что файл — наша база (для восстановления из копии).

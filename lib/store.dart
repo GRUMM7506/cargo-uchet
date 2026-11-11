@@ -4,16 +4,18 @@ import 'package:flutter/foundation.dart';
 import 'package:sqflite/sqflite.dart';
 
 import 'db.dart';
+import 'l10n.dart';
 import 'models.dart';
+import 'services/photos.dart';
 import 'settings.dart';
 
 /// Единое хранилище приложения. Данных у одного пользователя немного,
 /// поэтому всё держим в памяти и перечитываем после каждого изменения.
+///
+/// Долг клиента = сумма цен его заказов − залоги − оплаты.
 class AppStore extends ChangeNotifier {
   AppStore._();
   static final AppStore I = AppStore._();
-
-  static const defaultCategories = ['Груз', 'Доставка Китай', 'Машина', 'Таможня', 'Склад', 'Прочее'];
 
   Database? _db;
   Database get db => _db!;
@@ -24,39 +26,44 @@ class AppStore extends ChangeNotifier {
   List<Expense> expenses = [];
 
   Map<int, int> _balances = {};
+  Map<int, int> _paidByOrder = {};
 
   Future<void> init() async {
+    await Photos.init();
     _db = await AppDatabase.open();
     await AppSettings.I.load(db);
     await reload();
+    await Photos.cleanup(_usedPhotos());
   }
 
+  Set<String> _usedPhotos() => {
+        for (final c in clients)
+          if (c.photo != null) c.photo!,
+        for (final o in orders)
+          if (o.photo != null) o.photo!,
+      };
+
   Future<void> reload() async {
-    clients = (await db.query('clients', orderBy: 'name COLLATE NOCASE'))
-        .map(Client.fromMap)
-        .toList();
-    orders = (await db.query('orders', orderBy: 'accepted_at DESC, id DESC'))
-        .map(Order.fromMap)
-        .toList();
-    payments = (await db.query('payments', orderBy: 'paid_at DESC, id DESC'))
-        .map(Payment.fromMap)
-        .toList();
-    expenses = (await db.query('expenses', orderBy: 'spent_at DESC, id DESC'))
-        .map(Expense.fromMap)
-        .toList();
-    _computeBalances();
+    clients = (await db.query('clients', orderBy: 'name COLLATE NOCASE')).map(Client.fromMap).toList();
+    orders = (await db.query('orders', orderBy: 'accepted_at DESC, id DESC')).map(Order.fromMap).toList();
+    payments = (await db.query('payments', orderBy: 'paid_at DESC, id DESC')).map(Payment.fromMap).toList();
+    expenses = (await db.query('expenses', orderBy: 'spent_at DESC, id DESC')).map(Expense.fromMap).toList();
+    _compute();
     notifyListeners();
   }
 
-  void _computeBalances() {
+  void _compute() {
     final b = <int, int>{for (final c in clients) c.id!: 0};
+    final paid = <int, int>{};
     for (final o in orders) {
-      b[o.clientId] = (b[o.clientId] ?? 0) + o.amountCents;
+      b[o.clientId] = (b[o.clientId] ?? 0) + o.priceCents - o.depositCents;
     }
     for (final p in payments) {
       b[p.clientId] = (b[p.clientId] ?? 0) - p.amountCents;
+      if (p.orderId != null) paid[p.orderId!] = (paid[p.orderId!] ?? 0) + p.amountCents;
     }
     _balances = b;
+    _paidByOrder = paid;
   }
 
   // ---------- Запросы ----------
@@ -77,19 +84,31 @@ class AppStore extends ChangeNotifier {
     return null;
   }
 
-  /// > 0 — клиент должен, < 0 — аванс (переплата).
+  /// > 0 — клиент должен, < 0 — переплата.
   int balanceOf(int clientId) => _balances[clientId] ?? 0;
 
   int get totalDebt => _balances.values.where((v) => v > 0).fold(0, (a, b) => a + b);
-  int get totalAdvance => _balances.values.where((v) => v < 0).fold(0, (a, b) => a - b);
+  int get totalOverpaid => _balances.values.where((v) => v < 0).fold(0, (a, b) => a - b);
+
+  /// Должники, от большего долга к меньшему.
+  List<Client> get debtors => clients.where((c) => balanceOf(c.id!) > 0).toList()
+    ..sort((a, b) => balanceOf(b.id!).compareTo(balanceOf(a.id!)));
+
+  /// Оплачено по заказу отдельными оплатами (без залога).
+  int paidForOrder(int orderId) => _paidByOrder[orderId] ?? 0;
+
+  /// Сколько ещё должны за конкретный заказ (не меньше нуля).
+  int remainingOf(Order o) {
+    final r = o.priceCents - o.depositCents - paidForOrder(o.id!);
+    return r < 0 ? 0 : r;
+  }
 
   List<Order> ordersOf(int clientId) => orders.where((o) => o.clientId == clientId).toList();
   List<Payment> paymentsOf(int clientId) => payments.where((p) => p.clientId == clientId).toList();
-  int paidForOrder(int orderId) =>
-      payments.where((p) => p.orderId == orderId).fold(0, (a, p) => a + p.amountCents);
+  List<Payment> paymentsForOrder(int orderId) => payments.where((p) => p.orderId == orderId).toList();
 
   List<String> get categories {
-    final set = <String>{...defaultCategories};
+    final set = <String>{...t.defaultCategories};
     for (final e in expenses) {
       set.add(e.category);
     }
@@ -97,11 +116,17 @@ class AppStore extends ChangeNotifier {
   }
 
   MonthSummary summary(YearMonth m) {
-    var income = 0, expense = 0, ordSum = 0, ordCount = 0, weighted = 0;
-    var weight = 0.0;
+    var pays = 0, deps = 0, expense = 0, ordSum = 0, ordCount = 0;
     final byCat = <String, int>{};
     for (final p in payments) {
-      if (m.contains(p.paidAt)) income += p.amountCents;
+      if (m.contains(p.paidAt)) pays += p.amountCents;
+    }
+    for (final o in orders) {
+      if (o.depositCents > 0 && m.contains(o.depositDate)) deps += o.depositCents;
+      if (m.contains(o.acceptedAt)) {
+        ordSum += o.priceCents;
+        ordCount++;
+      }
     }
     for (final e in expenses) {
       if (m.contains(e.spentAt)) {
@@ -109,27 +134,14 @@ class AppStore extends ChangeNotifier {
         byCat[e.category] = (byCat[e.category] ?? 0) + e.amountCents;
       }
     }
-    for (final o in orders) {
-      if (m.contains(o.acceptedAt)) {
-        ordSum += o.amountCents;
-        ordCount++;
-        if (o.weightKg != null && o.weightKg! > 0) {
-          weight += o.weightKg!;
-          weighted += o.amountCents;
-        }
-      }
-    }
-    final sortedCat = Map.fromEntries(
-      byCat.entries.toList()..sort((a, b) => b.value.compareTo(a.value)),
-    );
+    final sortedCat = Map.fromEntries(byCat.entries.toList()..sort((a, b) => b.value.compareTo(a.value)));
     return MonthSummary(
       month: m,
-      incomeCents: income,
+      paymentsCents: pays,
+      depositsCents: deps,
       expenseCents: expense,
       ordersCents: ordSum,
       ordersCount: ordCount,
-      weightKg: weight,
-      weightedOrdersCents: weighted,
       expensesByCategory: sortedCat,
     );
   }
@@ -139,6 +151,7 @@ class AppStore extends ChangeNotifier {
     final set = <YearMonth>{YearMonth.now()};
     for (final o in orders) {
       set.add(YearMonth.of(o.acceptedAt));
+      if (o.depositCents > 0) set.add(YearMonth.of(o.depositDate));
     }
     for (final p in payments) {
       set.add(YearMonth.of(p.paidAt));
@@ -169,13 +182,38 @@ class AppStore extends ChangeNotifier {
     await reload();
   }
 
-  Future<int> saveClient(Client c) => _save('clients', c.toMap());
-  Future<int> saveOrder(Order o) => _save('orders', o.toMap());
+  /// Сохраняет клиента; если фото сменилось — удаляет старый файл.
+  Future<int> saveClient(Client c) async {
+    final old = c.id == null ? null : clientById(c.id!)?.photo;
+    final id = await _save('clients', c.toMap());
+    if (old != null && old != c.photo) await Photos.delete(old);
+    return id;
+  }
+
+  Future<int> saveOrder(Order o) async {
+    final old = o.id == null ? null : orderById(o.id!)?.photo;
+    final id = await _save('orders', o.toMap());
+    if (old != null && old != o.photo) await Photos.delete(old);
+    return id;
+  }
+
   Future<int> savePayment(Payment p) => _save('payments', p.toMap());
   Future<int> saveExpense(Expense e) => _save('expenses', e.toMap());
 
-  Future<void> deleteClient(int id) => _delete('clients', id);
-  Future<void> deleteOrder(int id) => _delete('orders', id);
+  Future<void> deleteClient(int id) async {
+    final photos = [clientById(id)?.photo, for (final o in ordersOf(id)) o.photo];
+    await _delete('clients', id);
+    for (final p in photos) {
+      await Photos.delete(p);
+    }
+  }
+
+  Future<void> deleteOrder(int id) async {
+    final photo = orderById(id)?.photo;
+    await _delete('orders', id);
+    await Photos.delete(photo);
+  }
+
   Future<void> deletePayment(int id) => _delete('payments', id);
   Future<void> deleteExpense(int id) => _delete('expenses', id);
 

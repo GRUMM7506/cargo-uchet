@@ -2,12 +2,14 @@ import 'package:flutter/material.dart';
 
 import '../format.dart';
 import '../forms.dart';
+import '../l10n.dart';
 import '../models.dart';
 import '../settings.dart';
 import '../store.dart';
 import '../theme.dart';
 import '../widgets/common.dart';
 import '../widgets/tiles.dart';
+import 'clients_screen.dart';
 import 'month_report_screen.dart';
 import 'settings_screen.dart';
 
@@ -33,23 +35,26 @@ class _HomeScreenState extends State<HomeScreen> {
       builder: (context, _) {
         final s = store.summary(_month);
         final ops = <(DateTime, Widget)>[
+          for (final o in store.orders)
+            if (o.depositCents > 0 && _month.contains(o.depositDate)) (o.depositDate, DepositTile(o)),
           for (final p in store.payments)
             if (_month.contains(p.paidAt)) (p.paidAt, PaymentTile(p)),
           for (final e in store.expenses)
             if (_month.contains(e.spentAt)) (e.spentAt, ExpenseTile(e)),
         ];
+        final debtors = store.debtors;
 
         return Scaffold(
           appBar: AppBar(
-            title: const Text('Учёт'),
+            title: Text(t.appTitle),
             actions: [
               IconButton(
-                tooltip: 'Отчёт за месяц',
+                tooltip: t.monthReport,
                 icon: const Icon(Icons.insert_chart_outlined_rounded),
                 onPressed: () => _open(MonthReportScreen(month: _month)),
               ),
               IconButton(
-                tooltip: 'Настройки',
+                tooltip: t.settings,
                 icon: const Icon(Icons.tune_rounded),
                 onPressed: () => _open(const SettingsScreen()),
               ),
@@ -65,59 +70,68 @@ class _HomeScreenState extends State<HomeScreen> {
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 child: _HeroCard(summary: s),
               ),
-              const SizedBox(height: 12),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: _DebtCard(onTap: widget.onOpenClients),
-              ),
               const SizedBox(height: 18),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 child: Row(children: [
                   _QuickAction(
                     icon: Icons.south_west_rounded,
-                    label: 'Оплата',
+                    label: t.payment,
                     color: context.colors.income,
                     background: context.colors.incomeBg,
                     onTap: () => _open(const PaymentFormPage()),
                   ),
                   _QuickAction(
-                    icon: Icons.north_east_rounded,
-                    label: 'Расход',
-                    color: context.colors.expense,
-                    background: context.colors.expenseBg,
-                    onTap: () => _open(const ExpenseFormPage()),
-                  ),
-                  _QuickAction(
-                    icon: Icons.local_shipping_outlined,
-                    label: 'Заказ',
+                    icon: Icons.handyman_outlined,
+                    label: t.order,
                     color: context.cs.primary,
                     background: context.cs.primaryContainer.withValues(alpha: 0.6),
                     onTap: () => _open(const OrderFormPage()),
                   ),
                   _QuickAction(
+                    icon: Icons.north_east_rounded,
+                    label: t.expenseOne,
+                    color: context.colors.expense,
+                    background: context.colors.expenseBg,
+                    onTap: () => _open(const ExpenseFormPage()),
+                  ),
+                  _QuickAction(
                     icon: Icons.person_add_alt_1_outlined,
-                    label: 'Клиент',
+                    label: t.client,
                     color: context.cs.tertiary,
                     background: context.cs.tertiaryContainer.withValues(alpha: 0.6),
                     onTap: () => _open(const ClientFormPage()),
                   ),
                 ]),
               ),
-              if (s.ordersCount > 0) ...[
-                const SizedBox(height: 16),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: _OrdersStrip(summary: s),
+              const SizedBox(height: 18),
+
+              // ----- Должники -----
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: _DebtCard(onTap: widget.onOpenClients),
+              ),
+              if (debtors.isNotEmpty) ...[
+                SectionHeader(
+                  t.debtors,
+                  padding: const EdgeInsets.fromLTRB(20, 20, 8, 6),
+                  trailing: debtors.length > 5
+                      ? TextButton(onPressed: widget.onOpenClients, child: Text('${t.seeAll} · ${debtors.length}'))
+                      : null,
                 ),
+                GroupCard(children: [
+                  for (final c in debtors.take(5))
+                    ClientTile(
+                      c,
+                      onTap: () => _open(ClientDetailScreen(clientId: c.id!)),
+                    ),
+                ]),
               ],
-              SectionHeader('Движение денег', padding: const EdgeInsets.fromLTRB(20, 24, 12, 0)),
+
+              // ----- Деньги за месяц -----
+              SectionHeader(t.moneyFlow, padding: const EdgeInsets.fromLTRB(20, 24, 12, 0)),
               if (ops.isEmpty)
-                const EmptyState(
-                  icon: Icons.receipt_long_outlined,
-                  title: 'Пока пусто',
-                  text: 'Оплаты и расходы этого месяца появятся здесь',
-                )
+                EmptyState(icon: Icons.receipt_long_outlined, title: t.emptyTitle, text: t.emptyMoneyFlow)
               else
                 DayGroupedList(items: ops),
             ],
@@ -157,11 +171,12 @@ class _HeroCard extends StatelessWidget {
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
-          Text(
-            profit >= 0 ? 'Прибыль за ${s.month.name.toLowerCase()}' : 'Убыток за ${s.month.name.toLowerCase()}',
-            style: TextStyle(color: fg.withValues(alpha: 0.85), fontWeight: FontWeight.w600),
+          Expanded(
+            child: Text(
+              profit >= 0 ? t.profitFor(s.month.name) : t.lossFor(s.month.name),
+              style: TextStyle(color: fg.withValues(alpha: 0.85), fontWeight: FontWeight.w600),
+            ),
           ),
-          const Spacer(),
           Icon(profit >= 0 ? Icons.trending_up_rounded : Icons.trending_down_rounded, color: fg.withValues(alpha: 0.85)),
         ]),
         const SizedBox(height: 6),
@@ -172,10 +187,10 @@ class _HeroCard extends StatelessWidget {
         ),
         const SizedBox(height: 16),
         Row(children: [
-          Expanded(child: _HeroStat(label: 'Пришло', value: money(s.incomeCents), icon: Icons.south_west_rounded, fg: fg)),
+          Expanded(child: _HeroStat(label: t.income, value: money(s.incomeCents), icon: Icons.south_west_rounded, fg: fg)),
           const SizedBox(width: 10),
           Expanded(
-              child: _HeroStat(label: 'Потрачено', value: money(s.expenseCents), icon: Icons.north_east_rounded, fg: fg)),
+              child: _HeroStat(label: t.expense, value: money(s.expenseCents), icon: Icons.north_east_rounded, fg: fg)),
         ]),
       ]),
     );
@@ -194,10 +209,7 @@ class _HeroStat extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: BoxDecoration(
-        color: fg.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(16),
-      ),
+      decoration: BoxDecoration(color: fg.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(16)),
       child: Row(children: [
         Container(
           width: 30,
@@ -230,7 +242,7 @@ class _DebtCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final store = AppStore.I;
     final c = context.colors;
-    final debtors = store.clients.where((x) => store.balanceOf(x.id!) > 0).length;
+    final n = store.debtors.length;
     return Card(
       clipBehavior: Clip.antiAlias,
       child: InkWell(
@@ -242,18 +254,18 @@ class _DebtCard extends StatelessWidget {
             const SizedBox(width: 14),
             Expanded(
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text('Клиенты должны', style: context.tt.titleSmall),
+                Text(t.clientsOwe, style: context.tt.titleSmall),
                 const SizedBox(height: 2),
                 Text(
                   [
-                    debtors == 0 ? 'никто не должен' : '$debtors ${_plural(debtors, 'клиент', 'клиента', 'клиентов')}',
-                    if (store.totalAdvance > 0) 'авансы ${money(store.totalAdvance)}',
+                    n == 0 ? t.nobodyOwes : t.clientsCount(n),
+                    if (store.totalOverpaid > 0) t.overpaidTotal(money(store.totalOverpaid)),
                   ].join(' · '),
                   style: context.tt.bodySmall?.copyWith(color: c.muted),
                 ),
               ]),
             ),
-            Text(money(store.totalDebt), style: amountStyle(20, color: store.totalDebt > 0 ? c.debt : c.muted)),
+            Text(money(store.totalDebt), style: amountStyle(22, color: store.totalDebt > 0 ? c.debt : c.muted)),
             const SizedBox(width: 4),
             Icon(Icons.chevron_right_rounded, color: c.muted),
           ]),
@@ -261,13 +273,6 @@ class _DebtCard extends StatelessWidget {
       ),
     );
   }
-}
-
-String _plural(int n, String one, String few, String many) {
-  final m10 = n % 10, m100 = n % 100;
-  if (m10 == 1 && m100 != 11) return one;
-  if (m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14)) return few;
-  return many;
 }
 
 class _QuickAction extends StatelessWidget {
@@ -300,52 +305,16 @@ class _QuickAction extends StatelessWidget {
               decoration: BoxDecoration(color: background, borderRadius: BorderRadius.circular(20)),
               child: Stack(alignment: Alignment.center, children: [
                 Icon(icon, color: color, size: 26),
-                Positioned(
-                  right: 9,
-                  top: 9,
-                  child: Icon(Icons.add_rounded, size: 13, color: color),
-                ),
+                Positioned(right: 9, top: 9, child: Icon(Icons.add_rounded, size: 13, color: color)),
               ]),
             ),
             const SizedBox(height: 7),
-            Text(label, style: context.tt.labelLarge?.copyWith(fontSize: 13)),
+            Text(label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: context.tt.labelLarge?.copyWith(fontSize: 13)),
           ]),
         ),
-      ),
-    );
-  }
-}
-
-class _OrdersStrip extends StatelessWidget {
-  final MonthSummary summary;
-
-  const _OrdersStrip({required this.summary});
-
-  @override
-  Widget build(BuildContext context) {
-    final s = summary;
-    final set = AppSettings.I;
-    final items = <(String, String)>[
-      ('Заказов', '${s.ordersCount}'),
-      ('На сумму', money(s.ordersCents)),
-      if (set.show(OrderField.weight) && s.weightKg > 0) ('Вес', kg(s.weightKg)),
-      if (set.show(OrderField.weight) && s.avgPerKgCents != null) ('Ср. за кг', money(s.avgPerKgCents!)),
-    ];
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 6),
-        child: Row(children: [
-          for (var i = 0; i < items.length; i++) ...[
-            if (i > 0) Container(width: 1, height: 30, color: context.cs.outlineVariant.withValues(alpha: 0.5)),
-            Expanded(
-              child: Column(children: [
-                Text(items[i].$1, style: context.tt.bodySmall?.copyWith(color: context.colors.muted)),
-                const SizedBox(height: 2),
-                FittedBox(fit: BoxFit.scaleDown, child: Text(items[i].$2, style: amountStyle(15))),
-              ]),
-            ),
-          ],
-        ]),
       ),
     );
   }

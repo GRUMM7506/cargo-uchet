@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'format.dart';
+import 'l10n.dart';
 import 'models.dart';
+import 'services/photos.dart';
 import 'settings.dart';
 import 'store.dart';
 import 'theme.dart';
@@ -14,13 +16,10 @@ final _settings = AppSettings.I;
 const _gap = SizedBox(height: 12);
 
 final _decimalOnly = [FilteringTextInputFormatter.allow(RegExp(r'[0-9.,\s]'))];
-final _signedDecimal = [FilteringTextInputFormatter.allow(RegExp(r'[-−0-9.,\s]'))];
 
-InputDecoration _dec(String label, {String? hint, String? suffix, String? prefix, IconData? icon, String? helper}) =>
-    InputDecoration(
+InputDecoration _dec(String label, {String? hint, String? prefix, IconData? icon, String? helper}) => InputDecoration(
       labelText: label,
       hintText: hint,
-      suffixText: suffix,
       prefixText: prefix,
       helperText: helper,
       prefixIcon: icon == null ? null : Icon(icon),
@@ -51,7 +50,7 @@ class _FormScaffold extends StatelessWidget {
           if (onDelete != null)
             IconButton(
               icon: Icon(Icons.delete_outline_rounded, color: context.colors.expense),
-              tooltip: 'Удалить',
+              tooltip: t.delete,
               onPressed: onDelete,
             ),
           const SizedBox(width: 4),
@@ -67,10 +66,70 @@ class _FormScaffold extends StatelessWidget {
           child: FilledButton.icon(
             style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(56)),
             icon: const Icon(Icons.check_rounded),
-            label: const Text('Сохранить', style: TextStyle(fontSize: 16)),
+            label: Text(t.save, style: const TextStyle(fontSize: 16)),
             onPressed: onSave,
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// Блок выбора фото в форме.
+class _PhotoPicker extends StatelessWidget {
+  final String? photo;
+  final String prefix;
+  final bool round;
+  final ValueChanged<String?> onChanged;
+
+  const _PhotoPicker({required this.photo, required this.prefix, required this.onChanged, this.round = false});
+
+  @override
+  Widget build(BuildContext context) {
+    final has = Photos.exists(photo);
+    final size = round ? 104.0 : 150.0;
+    final radius = BorderRadius.circular(round ? size / 2 : 24);
+    return Center(
+      child: GestureDetector(
+        onTap: () async {
+          final r = await choosePhoto(context, hasPhoto: has, prefix: prefix);
+          if (r == null) return;
+          onChanged(r.removed ? null : r.name);
+        },
+        child: Stack(clipBehavior: Clip.none, children: [
+          has
+              ? PhotoBox(photo: photo!, size: size, radius: radius)
+              : Container(
+                  width: size,
+                  height: size,
+                  decoration: BoxDecoration(
+                    color: context.cs.surfaceContainer,
+                    borderRadius: radius,
+                    border: Border.all(color: context.cs.outlineVariant),
+                  ),
+                  child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+                    Icon(Icons.add_a_photo_outlined, color: context.cs.primary, size: 30),
+                    const SizedBox(height: 6),
+                    Text(t.addPhoto,
+                        textAlign: TextAlign.center,
+                        style: context.tt.labelMedium?.copyWith(color: context.cs.primary)),
+                  ]),
+                ),
+          if (has)
+            Positioned(
+              right: -4,
+              bottom: -4,
+              child: Container(
+                padding: const EdgeInsets.all(7),
+                decoration: BoxDecoration(
+                  color: context.cs.primary,
+                  shape: BoxShape.circle,
+                  border: Border.all(color: context.cs.surface, width: 3),
+                ),
+                child: Icon(Icons.edit_rounded, size: 16, color: context.cs.onPrimary),
+              ),
+            ),
+        ]),
       ),
     );
   }
@@ -109,15 +168,13 @@ class _ClientPickerSheetState extends State<_ClientPickerSheet> {
           children: [
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-              child: Row(children: [
-                Expanded(child: Text('Выберите клиента', style: context.tt.titleLarge)),
-              ]),
+              child: Align(alignment: Alignment.centerLeft, child: Text(t.chooseClient, style: context.tt.titleLarge)),
             ),
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
               child: TextField(
                 autofocus: _store.clients.length > 8,
-                decoration: _dec('Поиск', icon: Icons.search_rounded),
+                decoration: _dec(t.search, icon: Icons.search_rounded),
                 onChanged: (v) => setState(() => _q = v),
               ),
             ),
@@ -125,7 +182,7 @@ class _ClientPickerSheetState extends State<_ClientPickerSheet> {
               contentPadding: const EdgeInsets.symmetric(horizontal: 16),
               leading: IconBadge(Icons.person_add_alt_1_rounded,
                   color: context.cs.primary, background: context.cs.primaryContainer.withValues(alpha: 0.6)),
-              title: Text(_q.trim().isEmpty ? 'Новый клиент' : 'Новый клиент «${_q.trim()}»'),
+              title: Text(_q.trim().isEmpty ? t.newClient : t.newClientNamed(_q.trim())),
               onTap: () async {
                 final id = await Navigator.push<int>(
                   context,
@@ -142,7 +199,7 @@ class _ClientPickerSheetState extends State<_ClientPickerSheet> {
                   final c = list[i];
                   return ListTile(
                     contentPadding: const EdgeInsets.symmetric(horizontal: 16),
-                    leading: Avatar(c.name, size: 40),
+                    leading: Avatar(c.name, photo: c.photo, size: 40),
                     title: Text(c.name),
                     trailing: BalancePill(_store.balanceOf(c.id!)),
                     onTap: () => Navigator.pop(context, c.id),
@@ -166,7 +223,7 @@ class _ClientField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final name = clientId == null ? null : _store.clientName(clientId!);
+    final client = clientId == null ? null : _store.clientById(clientId!);
     return InkWell(
       borderRadius: BorderRadius.circular(16),
       onTap: () async {
@@ -175,16 +232,16 @@ class _ClientField extends StatelessWidget {
       },
       child: InputDecorator(
         decoration: InputDecoration(
-          labelText: 'Клиент',
+          labelText: t.client,
           errorText: errorText,
-          prefixIcon: name == null
+          prefixIcon: client == null
               ? const Icon(Icons.person_outline_rounded)
-              : Padding(padding: const EdgeInsets.all(10), child: Avatar(name, size: 28)),
+              : Padding(padding: const EdgeInsets.all(10), child: Avatar(client.name, photo: client.photo, size: 28)),
           suffixIcon: const Icon(Icons.expand_more_rounded),
         ),
         child: Text(
-          name ?? 'Выберите клиента',
-          style: name == null ? TextStyle(color: Theme.of(context).hintColor) : context.tt.titleSmall,
+          client?.name ?? t.chooseClient,
+          style: client == null ? TextStyle(color: Theme.of(context).hintColor) : context.tt.titleSmall,
         ),
       ),
     );
@@ -208,11 +265,7 @@ class _ClientFormPageState extends State<ClientFormPage> {
   late final _name = TextEditingController(text: widget.client?.name ?? widget.initialName);
   late final _phone = TextEditingController(text: widget.client?.phone ?? '');
   late final _note = TextEditingController(text: widget.client?.note ?? '');
-  late final _rate = TextEditingController(
-    text: widget.client?.rateKgCents == null ? '' : moneyInput(widget.client!.rateKgCents!),
-  );
-
-  bool get _showRate => _settings.show(OrderField.pricing) && _settings.show(OrderField.weight);
+  late String? _photo = widget.client?.photo;
 
   Future<void> _save() async {
     if (!_key.currentState!.validate()) return;
@@ -221,7 +274,7 @@ class _ClientFormPageState extends State<ClientFormPage> {
       name: _name.text.trim(),
       phone: _phone.text.trim(),
       note: _note.text.trim(),
-      rateKgCents: parseMoney(_rate.text),
+      photo: _photo,
     ));
     if (mounted) Navigator.pop(context, id);
   }
@@ -229,12 +282,7 @@ class _ClientFormPageState extends State<ClientFormPage> {
   Future<void> _delete() async {
     final c = widget.client!;
     final n = _store.ordersOf(c.id!).length + _store.paymentsOf(c.id!).length;
-    final ok = await confirm(
-      context,
-      n == 0
-          ? 'Удалить клиента «${c.name}»?'
-          : 'Удалить клиента «${c.name}» вместе со всеми его заказами и оплатами ($n записей)?',
-    );
+    final ok = await confirm(context, n == 0 ? t.deleteClientQ(c.name) : t.deleteClientWithQ(c.name, n));
     if (!ok) return;
     await _store.deleteClient(c.id!);
     if (mounted) Navigator.pop(context, -1);
@@ -242,48 +290,32 @@ class _ClientFormPageState extends State<ClientFormPage> {
 
   @override
   Widget build(BuildContext context) {
-    final def = _settings.defaultRateKgCents;
     return _FormScaffold(
-      title: widget.client == null ? 'Новый клиент' : 'Клиент',
+      title: widget.client == null ? t.newClient : t.client,
       formKey: _key,
       onSave: _save,
       onDelete: widget.client == null ? null : _delete,
       children: [
+        _PhotoPicker(photo: _photo, prefix: 'c', round: true, onChanged: (p) => setState(() => _photo = p)),
+        const SizedBox(height: 18),
         TextFormField(
           controller: _name,
           autofocus: widget.client == null && widget.initialName.isEmpty,
           textCapitalization: TextCapitalization.words,
-          decoration: _dec('Имя', icon: Icons.person_outline_rounded),
-          validator: (v) => (v == null || v.trim().isEmpty) ? 'Введите имя' : null,
+          decoration: _dec(t.name, icon: Icons.person_outline_rounded),
+          validator: (v) => (v == null || v.trim().isEmpty) ? t.enterName : null,
         ),
         _gap,
         TextFormField(
           controller: _phone,
           keyboardType: TextInputType.phone,
-          decoration: _dec('Телефон', icon: Icons.phone_outlined),
+          decoration: _dec(t.phone, icon: Icons.phone_outlined),
         ),
-        if (_showRate) ...[
-          _gap,
-          TextFormField(
-            controller: _rate,
-            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            inputFormatters: _decimalOnly,
-            decoration: _dec(
-              'Своя цена за кг',
-              prefix: '\$ ',
-              suffix: '/ кг',
-              icon: Icons.scale_outlined,
-              helper: def == null
-                  ? 'Если пусто — цена из настроек'
-                  : 'Если пусто — обычная цена ${money(def)}/кг',
-            ),
-          ),
-        ],
         _gap,
         TextFormField(
           controller: _note,
           maxLines: 3,
-          decoration: _dec('Заметка', icon: Icons.notes_rounded),
+          decoration: _dec(t.note, icon: Icons.notes_rounded),
         ),
       ],
     );
@@ -305,99 +337,54 @@ class OrderFormPage extends StatefulWidget {
 class _OrderFormPageState extends State<OrderFormPage> {
   final _key = GlobalKey<FormState>();
   late int? _clientId = widget.order?.clientId ?? widget.clientId;
+  late String? _photo = widget.order?.photo;
   late final _desc = TextEditingController(text: widget.order?.description ?? '');
-  late final _code = TextEditingController(text: widget.order?.code ?? '');
-  late final _weight = TextEditingController(text: numInput(widget.order?.weightKg));
-  late final _qty = TextEditingController(text: widget.order?.quantity?.toString() ?? '');
-  late final _amount = TextEditingController(
-    text: widget.order == null ? '' : moneyInput(widget.order!.amountCents),
+  late final _price = TextEditingController(
+    text: widget.order == null ? '' : moneyInput(widget.order!.priceCents),
   );
-  late final _rate = TextEditingController();
-  late final _extra = TextEditingController(
-    text: (widget.order?.extraCents ?? 0) == 0 ? '' : moneyInput(widget.order!.extraCents),
+  late final _deposit = TextEditingController(
+    text: (widget.order?.depositCents ?? 0) == 0 ? '' : moneyInput(widget.order!.depositCents),
   );
   late final _note = TextEditingController(text: widget.order?.note ?? '');
   late DateTime _accepted = widget.order?.acceptedAt ?? today();
+  late DateTime? _depositAt = widget.order?.depositAt;
+  late DateTime? _due = widget.order?.dueAt;
   late DateTime? _done = widget.order?.doneAt;
-  late Pricing _pricing;
-  bool _rateTouched = false;
   bool _clientError = false;
 
   @override
   void initState() {
     super.initState();
-    final o = widget.order;
-    final available = _settings.availablePricing;
-    if (o != null) {
-      _pricing = available.contains(o.pricing) ? o.pricing : Pricing.fixed;
-      if (o.rateCents != null && _pricing != Pricing.fixed) {
-        _rate.text = moneyInput(o.rateCents!);
-        _rateTouched = true;
-      }
-    } else {
-      _pricing = _settings.effectiveDefaultPricing;
-      _fillDefaultRate();
-    }
-    for (final c in [_weight, _qty, _rate, _extra]) {
-      c.addListener(_onChanged);
-    }
+    _price.addListener(_refresh);
+    _deposit.addListener(_refresh);
   }
 
-  void _onChanged() => setState(() {});
+  void _refresh() => setState(() {});
 
   @override
   void dispose() {
-    for (final c in [_desc, _code, _weight, _qty, _amount, _rate, _extra, _note]) {
+    for (final c in [_desc, _price, _deposit, _note]) {
       c.dispose();
     }
     super.dispose();
   }
 
-  int? _defaultRate(Pricing p) {
-    switch (p) {
-      case Pricing.fixed:
-        return null;
-      case Pricing.perKg:
-        final client = _clientId == null ? null : _store.clientById(_clientId!);
-        return client?.rateKgCents ?? _settings.defaultRateKgCents;
-      case Pricing.perUnit:
-        return _settings.defaultRateUnitCents;
-    }
-  }
-
-  void _fillDefaultRate() {
-    if (_rateTouched) return;
-    final r = _defaultRate(_pricing);
-    _rate.text = r == null ? '' : moneyInput(r);
-  }
-
-  int? get _computed => computeOrderAmount(
-        pricing: _pricing,
-        rateCents: parseMoney(_rate.text),
-        weightKg: parseNum(_weight.text),
-        quantity: int.tryParse(_qty.text.trim()),
-        extraCents: _settings.show(OrderField.extra) ? (parseMoney(_extra.text.replaceAll('−', '-')) ?? 0) : 0,
-      );
-
   Future<void> _save() async {
     final valid = _key.currentState!.validate();
     setState(() => _clientError = _clientId == null);
     if (!valid || _clientId == null) return;
-    final tariff = _pricing != Pricing.fixed;
-    final amount = tariff ? _computed : parseMoney(_amount.text);
-    if (amount == null) return;
+    final deposit = parseMoney(_deposit.text) ?? 0;
     await _store.saveOrder(Order(
       id: widget.order?.id,
       clientId: _clientId!,
       description: _desc.text.trim(),
-      code: _code.text.trim(),
-      weightKg: parseNum(_weight.text),
-      quantity: int.tryParse(_qty.text.trim()),
-      pricing: _pricing,
-      rateCents: tariff ? parseMoney(_rate.text) : null,
-      extraCents: tariff && _settings.show(OrderField.extra) ? (parseMoney(_extra.text.replaceAll('−', '-')) ?? 0) : 0,
-      amountCents: amount,
+      photo: _photo,
+      priceCents: parseMoney(_price.text)!,
+      depositCents: deposit,
+      // дату залога храним, только если она отличается от даты приёма
+      depositAt: deposit == 0 || _depositAt == null || _depositAt == _accepted ? null : _depositAt,
       acceptedAt: _accepted,
+      dueAt: _due,
       doneAt: _done,
       note: _note.text.trim(),
     ));
@@ -405,185 +392,155 @@ class _OrderFormPageState extends State<OrderFormPage> {
   }
 
   Future<void> _delete() async {
-    if (!await confirm(context, 'Удалить этот заказ?')) return;
+    if (!await confirm(context, t.deleteOrderQ)) return;
     await _store.deleteOrder(widget.order!.id!);
-    if (mounted) Navigator.pop(context, true);
+    if (mounted) Navigator.pop(context, -1);
   }
 
   @override
   Widget build(BuildContext context) {
     final s = _settings;
-    final available = s.availablePricing;
-    final tariff = _pricing != Pricing.fixed;
-    final showWeight = s.show(OrderField.weight);
-    final showQty = s.show(OrderField.quantity);
-
-    final weightField = TextFormField(
-      controller: _weight,
-      keyboardType: const TextInputType.numberWithOptions(decimal: true),
-      inputFormatters: _decimalOnly,
-      decoration: _dec('Вес', suffix: 'кг', icon: Icons.scale_outlined),
-      validator: (v) {
-        final t = v?.trim() ?? '';
-        if (t.isNotEmpty && parseNum(t) == null) return 'Число';
-        if (_pricing == Pricing.perKg && (parseNum(t) ?? 0) <= 0) return 'Укажите вес';
-        return null;
-      },
-    );
-    final qtyField = TextFormField(
-      controller: _qty,
-      keyboardType: TextInputType.number,
-      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-      decoration: _dec('Кол-во', suffix: 'шт', icon: Icons.tag_rounded),
-      validator: (v) {
-        if (_pricing == Pricing.perUnit && (int.tryParse(v?.trim() ?? '') ?? 0) <= 0) return 'Укажите кол-во';
-        return null;
-      },
-    );
+    final price = parseMoney(_price.text) ?? 0;
+    final deposit = parseMoney(_deposit.text) ?? 0;
+    final paidBefore = widget.order?.id == null ? 0 : _store.paidForOrder(widget.order!.id!);
+    final remain = price - deposit - paidBefore;
+    final c = context.colors;
 
     return _FormScaffold(
-      title: widget.order == null ? 'Новый заказ' : 'Заказ',
+      title: widget.order == null ? t.newOrder : t.order,
       formKey: _key,
       onSave: _save,
       onDelete: widget.order == null ? null : _delete,
       children: [
+        if (s.show(OrderField.photo)) ...[
+          _PhotoPicker(photo: _photo, prefix: 'o', onChanged: (p) => setState(() => _photo = p)),
+          const SizedBox(height: 18),
+        ],
         _ClientField(
           clientId: _clientId,
-          errorText: _clientError ? 'Выберите клиента' : null,
-          onChanged: (id) {
+          errorText: _clientError ? t.chooseClient : null,
+          onChanged: (id) => setState(() {
             _clientId = id;
             _clientError = false;
-            _fillDefaultRate();
-            setState(() {});
-          },
+          }),
         ),
         _gap,
         if (s.show(OrderField.description)) ...[
           TextFormField(
             controller: _desc,
             textCapitalization: TextCapitalization.sentences,
-            decoration: _dec('Что за груз / товар', icon: Icons.inventory_2_outlined),
+            decoration: _dec(t.workDescription, icon: Icons.handyman_outlined),
           ),
           _gap,
         ],
-        if (s.show(OrderField.code)) ...[
-          TextFormField(
-            controller: _code,
-            decoration: _dec('Трек-номер / код', icon: Icons.qr_code_2_rounded),
-          ),
-          _gap,
-        ],
-        if (showWeight && showQty)
-          Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Expanded(child: weightField),
-            const SizedBox(width: 10),
-            Expanded(child: qtyField),
-          ])
-        else if (showWeight)
-          weightField
-        else if (showQty)
-          qtyField,
-        if (showWeight || showQty) _gap,
 
-        // ----- Сумма -----
-        SectionCard(
-          title: 'Сумма заказа',
-          children: [
-            if (available.length > 1) ...[
-              SegmentedButton<Pricing>(
-                segments: [
-                  for (final p in available)
-                    ButtonSegment(
-                      value: p,
-                      label: Text(p.label),
-                      icon: Icon(switch (p) {
-                        Pricing.fixed => Icons.attach_money_rounded,
-                        Pricing.perKg => Icons.scale_outlined,
-                        Pricing.perUnit => Icons.tag_rounded,
-                      }),
-                    ),
-                ],
-                selected: {_pricing},
-                showSelectedIcon: false,
-                onSelectionChanged: (sel) {
-                  final before = _computed;
-                  _pricing = sel.first;
-                  _rateTouched = false;
-                  _fillDefaultRate();
-                  if (_pricing == Pricing.fixed && _amount.text.isEmpty && before != null) {
-                    _amount.text = moneyInput(before);
-                  }
-                  setState(() {});
-                },
-              ),
-              const SizedBox(height: 14),
-            ],
-            if (!tariff)
-              TextFormField(
-                controller: _amount,
-                keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                inputFormatters: _decimalOnly,
-                style: amountStyle(22),
-                decoration: _dec('Сумма', prefix: '\$ ', icon: Icons.payments_outlined),
-                validator: (v) {
-                  final c = parseMoney(v ?? '');
-                  if (c == null) return 'Введите сумму';
-                  if (c < 0) return 'Сумма не может быть отрицательной';
-                  return null;
-                },
-              )
-            else ...[
-              TextFormField(
-                controller: _rate,
-                keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                inputFormatters: _decimalOnly,
-                onChanged: (_) => _rateTouched = true,
-                decoration: _dec(
-                  _pricing == Pricing.perKg ? 'Цена за кг' : 'Цена за штуку',
-                  prefix: '\$ ',
-                  suffix: _pricing == Pricing.perKg ? '/ кг' : '/ шт',
-                  icon: Icons.sell_outlined,
-                  helper: _rateHelper(),
-                ),
-                validator: (v) => (parseMoney(v ?? '') ?? 0) <= 0 ? 'Укажите цену' : null,
-              ),
-              if (s.show(OrderField.extra)) ...[
-                _gap,
-                TextFormField(
-                  controller: _extra,
-                  keyboardType: const TextInputType.numberWithOptions(decimal: true, signed: true),
-                  inputFormatters: _signedDecimal,
-                  decoration: _dec(
-                    'Доплата / скидка',
-                    prefix: '\$ ',
-                    icon: Icons.add_circle_outline_rounded,
-                    helper: 'Упаковка, доставка по городу… Скидка — с минусом',
-                  ),
-                ),
-              ],
-              const SizedBox(height: 14),
-              _TariffSummary(
-                pricing: _pricing,
-                weight: parseNum(_weight.text),
-                qty: int.tryParse(_qty.text.trim()),
-                rate: parseMoney(_rate.text),
-                extra: s.show(OrderField.extra) ? (parseMoney(_extra.text.replaceAll('−', '-')) ?? 0) : 0,
-                total: _computed,
+        // ----- Деньги -----
+        SectionCard(children: [
+          TextFormField(
+            controller: _price,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            inputFormatters: _decimalOnly,
+            style: amountStyle(22),
+            decoration: _dec(t.workPrice, prefix: '\$ ', icon: Icons.sell_outlined),
+            validator: (v) {
+              final x = parseMoney(v ?? '');
+              if (x == null) return t.enterAmount;
+              if (x < 0) return t.negativeAmount;
+              return null;
+            },
+          ),
+          if (s.show(OrderField.deposit)) ...[
+            _gap,
+            TextFormField(
+              controller: _deposit,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              inputFormatters: _decimalOnly,
+              style: amountStyle(18, color: c.income),
+              decoration: _dec(t.deposit, prefix: '\$ ', icon: Icons.savings_outlined, helper: t.depositHint),
+              validator: (v) {
+                final d = parseMoney(v ?? '') ?? 0;
+                final p = parseMoney(_price.text) ?? 0;
+                if (d > p && p > 0) return t.depositTooBig;
+                return null;
+              },
+            ),
+            if (deposit > 0) ...[
+              _gap,
+              DateField(
+                label: t.depositDate,
+                value: _depositAt ?? _accepted,
+                icon: Icons.event_available_outlined,
+                onChanged: (d) => setState(() => _depositAt = d),
               ),
             ],
           ],
-        ),
+          if (price > 0) ...[
+            const SizedBox(height: 14),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              decoration: BoxDecoration(
+                color: remain > 0 ? c.debtBg : c.incomeBg,
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Row(children: [
+                Icon(remain > 0 ? Icons.error_outline_rounded : Icons.check_circle_outline_rounded,
+                    color: remain > 0 ? c.debt : c.income),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    remain > 0 ? t.willRemain : t.fullyPaid,
+                    style: context.tt.titleSmall?.copyWith(color: remain > 0 ? c.debt : c.income),
+                  ),
+                ),
+                if (remain > 0) Text(money(remain), style: amountStyle(20, color: c.debt)),
+              ]),
+            ),
+          ],
+        ]),
         _gap,
 
         // ----- Даты -----
-        DateField(label: 'Дата приёма', value: _accepted, onChanged: (d) => setState(() => _accepted = d)),
+        DateField(label: t.acceptDate, value: _accepted, onChanged: (d) => setState(() => _accepted = d)),
+        if (s.show(OrderField.due)) ...[
+          _gap,
+          if (_due == null)
+            OutlinedButton.icon(
+              icon: const Icon(Icons.flag_outlined),
+              label: Text(t.setDue),
+              onPressed: () async {
+                final d = await showDatePicker(
+                  context: context,
+                  initialDate: _accepted.add(const Duration(days: 7)),
+                  firstDate: DateTime(2020),
+                  lastDate: DateTime(2100),
+                );
+                if (d != null) setState(() => _due = d);
+              },
+            )
+          else
+            Row(children: [
+              Expanded(
+                child: DateField(
+                  label: t.dueDate,
+                  value: _due!,
+                  icon: Icons.flag_outlined,
+                  onChanged: (d) => setState(() => _due = d),
+                ),
+              ),
+              IconButton(
+                tooltip: t.noDue,
+                icon: const Icon(Icons.close_rounded),
+                onPressed: () => setState(() => _due = null),
+              ),
+            ]),
+        ],
         if (s.show(OrderField.done)) ...[
           _gap,
           Card(
             child: SwitchListTile(
               contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
-              title: const Text('Заказ выполнен'),
-              subtitle: Text(_done == null ? 'В работе' : 'Выполнен ${dayLabel(_done!, withYear: true)}'),
+              title: Text(t.orderIsDone),
+              subtitle: Text(_done == null ? t.inWorkCap : t.doneOn(dayLabel(_done!, withYear: true))),
               value: _done != null,
               onChanged: (v) => setState(() => _done = v ? today() : null),
             ),
@@ -591,7 +548,7 @@ class _OrderFormPageState extends State<OrderFormPage> {
           if (_done != null) ...[
             _gap,
             DateField(
-              label: 'Дата выполнения',
+              label: t.doneDateLabel,
               value: _done!,
               icon: Icons.task_alt_rounded,
               onChanged: (d) => setState(() => _done = d),
@@ -603,65 +560,10 @@ class _OrderFormPageState extends State<OrderFormPage> {
           TextFormField(
             controller: _note,
             maxLines: 2,
-            decoration: _dec('Заметка', icon: Icons.notes_rounded),
+            decoration: _dec(t.note, icon: Icons.notes_rounded),
           ),
         ],
       ],
-    );
-  }
-
-  String? _rateHelper() {
-    if (_pricing != Pricing.perKg) return null;
-    final client = _clientId == null ? null : _store.clientById(_clientId!);
-    if (client?.rateKgCents != null) return 'Цена клиента: ${money(client!.rateKgCents!)}/кг';
-    if (_settings.defaultRateKgCents != null) return 'Обычная цена: ${money(_settings.defaultRateKgCents!)}/кг';
-    return 'Обычную цену можно задать в настройках';
-  }
-}
-
-class _TariffSummary extends StatelessWidget {
-  final Pricing pricing;
-  final double? weight;
-  final int? qty;
-  final int? rate;
-  final int extra;
-  final int? total;
-
-  const _TariffSummary({
-    required this.pricing,
-    required this.weight,
-    required this.qty,
-    required this.rate,
-    required this.extra,
-    required this.total,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final base = pricing == Pricing.perKg
-        ? (weight == null ? '? кг' : kg(weight!))
-        : (qty == null ? '? шт' : '$qty шт');
-    final formula = '$base × ${rate == null ? '\$?' : money(rate!)}'
-        '${extra == 0 ? '' : (extra > 0 ? ' + ${money(extra)}' : ' − ${money(-extra)}')}';
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: context.cs.primaryContainer.withValues(alpha: context.isDark ? 0.35 : 0.55),
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Row(children: [
-        Expanded(
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('Итого к оплате', style: context.tt.labelMedium?.copyWith(color: context.cs.onPrimaryContainer)),
-            const SizedBox(height: 2),
-            Text(formula, style: context.tt.bodySmall?.copyWith(color: context.cs.onPrimaryContainer)),
-          ]),
-        ),
-        Text(
-          total == null ? '—' : money(total!),
-          style: amountStyle(24, color: context.cs.onPrimaryContainer),
-        ),
-      ]),
     );
   }
 }
@@ -690,6 +592,14 @@ class _PaymentFormPageState extends State<PaymentFormPage> {
   late DateTime _date = widget.payment?.paidAt ?? today();
   bool _clientError = false;
 
+  @override
+  void initState() {
+    super.initState();
+    if (_clientId == null && widget.orderId != null) {
+      _clientId = _store.orderById(widget.orderId!)?.clientId;
+    }
+  }
+
   Future<void> _save() async {
     final valid = _key.currentState!.validate();
     setState(() => _clientError = _clientId == null);
@@ -706,7 +616,7 @@ class _PaymentFormPageState extends State<PaymentFormPage> {
   }
 
   Future<void> _delete() async {
-    if (!await confirm(context, 'Удалить эту оплату?')) return;
+    if (!await confirm(context, t.deletePaymentQ)) return;
     await _store.deletePayment(widget.payment!.id!);
     if (mounted) Navigator.pop(context, true);
   }
@@ -714,26 +624,31 @@ class _PaymentFormPageState extends State<PaymentFormPage> {
   @override
   Widget build(BuildContext context) {
     // Баланс без учёта редактируемой оплаты — чтобы кнопка «весь долг» работала и при правке.
+    final edit = widget.payment;
     int? balance;
     if (_clientId != null) {
       balance = _store.balanceOf(_clientId!);
-      if (widget.payment != null && widget.payment!.clientId == _clientId) {
-        balance += widget.payment!.amountCents;
-      }
+      if (edit != null && edit.clientId == _clientId) balance += edit.amountCents;
     }
     final clientOrders = _clientId == null ? <Order>[] : _store.ordersOf(_clientId!);
     if (_orderId != null && !clientOrders.any((o) => o.id == _orderId)) _orderId = null;
+    final order = _orderId == null ? null : _store.orderById(_orderId!);
+    int? orderRemain;
+    if (order != null) {
+      orderRemain = _store.remainingOf(order);
+      if (edit != null && edit.orderId == order.id) orderRemain += edit.amountCents;
+    }
     final c = context.colors;
 
     return _FormScaffold(
-      title: widget.payment == null ? 'Оплата от клиента' : 'Оплата',
+      title: edit == null ? t.paymentFromClient : t.payment,
       formKey: _key,
       onSave: _save,
-      onDelete: widget.payment == null ? null : _delete,
+      onDelete: edit == null ? null : _delete,
       children: [
         _ClientField(
           clientId: _clientId,
-          errorText: _clientError ? 'Выберите клиента' : null,
+          errorText: _clientError ? t.chooseClient : null,
           onChanged: (id) => setState(() {
             _clientId = id;
             _clientError = false;
@@ -756,8 +671,8 @@ class _PaymentFormPageState extends State<PaymentFormPage> {
               Expanded(
                 child: Text(
                   balance > 0
-                      ? 'Долг клиента: ${money(balance)}'
-                      : (balance < 0 ? 'Аванс клиента: ${money(-balance)}' : 'Клиент полностью рассчитан'),
+                      ? t.clientDebt(money(balance))
+                      : (balance < 0 ? t.clientOverpaid(money(-balance)) : t.clientSettled),
                   style: context.tt.titleSmall?.copyWith(
                     color: balance > 0 ? c.debt : (balance < 0 ? c.income : c.muted),
                   ),
@@ -766,7 +681,7 @@ class _PaymentFormPageState extends State<PaymentFormPage> {
               if (balance > 0)
                 TextButton(
                   onPressed: () => setState(() => _amount.text = moneyInput(balance!)),
-                  child: const Text('Весь долг'),
+                  child: Text(t.wholeDebt),
                 ),
             ]),
           ),
@@ -774,19 +689,19 @@ class _PaymentFormPageState extends State<PaymentFormPage> {
         _gap,
         TextFormField(
           controller: _amount,
-          autofocus: widget.payment == null && _clientId != null,
+          autofocus: edit == null && _clientId != null,
           keyboardType: const TextInputType.numberWithOptions(decimal: true),
           inputFormatters: _decimalOnly,
           style: amountStyle(26, color: c.income),
-          decoration: _dec('Сколько дал', prefix: '\$ ', icon: Icons.south_west_rounded),
+          decoration: _dec(t.howMuchGave, prefix: '\$ ', icon: Icons.south_west_rounded),
           validator: (v) {
             final x = parseMoney(v ?? '');
-            if (x == null || x <= 0) return 'Введите сумму';
+            if (x == null || x <= 0) return t.enterAmount;
             return null;
           },
         ),
         _gap,
-        DateField(label: 'Дата', value: _date, onChanged: (d) => setState(() => _date = d)),
+        DateField(label: t.date, value: _date, onChanged: (d) => setState(() => _date = d)),
         _gap,
         if (clientOrders.isNotEmpty) ...[
           DropdownButtonFormField<int?>(
@@ -794,26 +709,34 @@ class _PaymentFormPageState extends State<PaymentFormPage> {
             initialValue: _orderId,
             isExpanded: true,
             borderRadius: BorderRadius.circular(16),
-            decoration: _dec('За какой заказ (необязательно)', icon: Icons.receipt_long_outlined),
+            decoration: _dec(t.forWhichOrder, icon: Icons.receipt_long_outlined),
             items: [
-              const DropdownMenuItem<int?>(value: null, child: Text('Общий счёт клиента')),
+              DropdownMenuItem<int?>(value: null, child: Text(t.generalAccount)),
               for (final o in clientOrders)
                 DropdownMenuItem<int?>(
                   value: o.id,
                   child: Text(
-                    '${shortDay(o.acceptedAt)} · ${o.title} · ${money(o.amountCents)}',
+                    '${shortDay(o.acceptedAt)} · ${o.title} · ${money(o.priceCents)}',
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
             ],
             onChanged: (v) => setState(() => _orderId = v),
           ),
+          if (orderRemain != null && orderRemain > 0)
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton(
+                onPressed: () => setState(() => _amount.text = moneyInput(orderRemain!)),
+                child: Text('${t.orderRemainder}: ${money(orderRemain)}'),
+              ),
+            ),
           _gap,
         ],
         TextFormField(
           controller: _note,
           maxLines: 2,
-          decoration: _dec('Заметка', icon: Icons.notes_rounded),
+          decoration: _dec(t.note, icon: Icons.notes_rounded),
         ),
       ],
     );
@@ -853,7 +776,7 @@ class _ExpenseFormPageState extends State<ExpenseFormPage> {
   }
 
   Future<void> _delete() async {
-    if (!await confirm(context, 'Удалить этот расход?')) return;
+    if (!await confirm(context, t.deleteExpenseQ)) return;
     await _store.deleteExpense(widget.expense!.id!);
     if (mounted) Navigator.pop(context, true);
   }
@@ -862,7 +785,7 @@ class _ExpenseFormPageState extends State<ExpenseFormPage> {
   Widget build(BuildContext context) {
     final c = context.colors;
     return _FormScaffold(
-      title: widget.expense == null ? 'Новый расход' : 'Расход',
+      title: widget.expense == null ? t.newExpense : t.expenseOne,
       formKey: _key,
       onSave: _save,
       onDelete: widget.expense == null ? null : _delete,
@@ -873,16 +796,16 @@ class _ExpenseFormPageState extends State<ExpenseFormPage> {
           keyboardType: const TextInputType.numberWithOptions(decimal: true),
           inputFormatters: _decimalOnly,
           style: amountStyle(26, color: c.expense),
-          decoration: _dec('Сумма', prefix: '\$ ', icon: Icons.north_east_rounded),
+          decoration: _dec(t.amount, prefix: '\$ ', icon: Icons.north_east_rounded),
           validator: (v) {
             final x = parseMoney(v ?? '');
-            if (x == null || x <= 0) return 'Введите сумму';
+            if (x == null || x <= 0) return t.enterAmount;
             return null;
           },
         ),
         _gap,
         SectionCard(
-          title: 'На что',
+          title: t.spentOn,
           children: [
             Wrap(
               spacing: 8,
@@ -900,19 +823,19 @@ class _ExpenseFormPageState extends State<ExpenseFormPage> {
             TextFormField(
               controller: _category,
               textCapitalization: TextCapitalization.sentences,
-              decoration: _dec('Или своя категория', icon: Icons.edit_outlined),
-              validator: (v) => (v == null || v.trim().isEmpty) ? 'Укажите, на что потратили' : null,
+              decoration: _dec(t.ownCategory, icon: Icons.edit_outlined),
+              validator: (v) => (v == null || v.trim().isEmpty) ? t.enterCategory : null,
               onChanged: (_) => setState(() {}),
             ),
           ],
         ),
         _gap,
-        DateField(label: 'Дата', value: _date, onChanged: (d) => setState(() => _date = d)),
+        DateField(label: t.date, value: _date, onChanged: (d) => setState(() => _date = d)),
         _gap,
         TextFormField(
           controller: _note,
           maxLines: 2,
-          decoration: _dec('Комментарий', icon: Icons.notes_rounded),
+          decoration: _dec(t.comment, icon: Icons.notes_rounded),
         ),
       ],
     );

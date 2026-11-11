@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../format.dart';
 import '../forms.dart';
+import '../l10n.dart';
 import '../models.dart';
 import '../settings.dart';
 import '../store.dart';
@@ -10,7 +11,7 @@ import '../widgets/common.dart';
 import '../widgets/tiles.dart';
 import 'settings_screen.dart';
 
-enum _Filter { active, done, all }
+enum _Filter { active, debt, all }
 
 class OrdersScreen extends StatefulWidget {
   const OrdersScreen({super.key});
@@ -31,28 +32,33 @@ class _OrdersScreenState extends State<OrdersScreen> {
       builder: (context, _) {
         final set = AppSettings.I;
         final showStatus = set.show(OrderField.done);
-        final filter = showStatus ? _filter : _Filter.all;
-        final list = store.orders.where((o) {
-          final okStatus = switch (filter) {
+        var filter = _filter;
+        if (!showStatus && filter == _Filter.active) filter = _Filter.debt;
+
+        var list = store.orders.where((o) {
+          final ok = switch (filter) {
             _Filter.active => !o.isDone,
-            _Filter.done => o.isDone,
+            _Filter.debt => store.remainingOf(o) > 0,
             _Filter.all => true,
           };
-          if (!okStatus) return false;
+          if (!ok) return false;
           if (_q.isEmpty) return true;
-          return store.clientName(o.clientId).toLowerCase().contains(_q) ||
-              o.description.toLowerCase().contains(_q) ||
-              o.code.toLowerCase().contains(_q);
+          return store.clientName(o.clientId).toLowerCase().contains(_q) || o.description.toLowerCase().contains(_q);
         }).toList();
-        final sum = list.fold(0, (a, o) => a + o.amountCents);
-        final weight = list.fold(0.0, (a, o) => a + (o.weightKg ?? 0));
+        // просроченные — наверх
+        if (filter == _Filter.active) {
+          list = [...list.where((o) => o.isOverdue), ...list.where((o) => !o.isOverdue)];
+        }
+        final sum = list.fold(0, (a, o) => a + o.priceCents);
+        final remain = list.fold(0, (a, o) => a + store.remainingOf(o));
+        final activeCount = store.orders.where((o) => !o.isDone).length;
 
         return Scaffold(
           appBar: AppBar(
-            title: const Text('Заказы'),
+            title: Text(t.tabOrders),
             actions: [
               IconButton(
-                tooltip: 'Настроить поля',
+                tooltip: t.fieldsTooltip,
                 icon: const Icon(Icons.view_agenda_outlined),
                 onPressed: () => Navigator.push(
                   context,
@@ -64,7 +70,7 @@ class _OrdersScreenState extends State<OrdersScreen> {
           ),
           floatingActionButton: FloatingActionButton.extended(
             icon: const Icon(Icons.add_rounded),
-            label: const Text('Заказ'),
+            label: Text(t.order),
             onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const OrderFormPage())),
           ),
           body: ListView(
@@ -73,58 +79,46 @@ class _OrdersScreenState extends State<OrdersScreen> {
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
                 child: TextField(
-                  decoration: InputDecoration(
-                    hintText: set.show(OrderField.code) ? 'Клиент, груз или трек-номер' : 'Клиент или груз',
-                    prefixIcon: const Icon(Icons.search_rounded),
-                  ),
+                  decoration: InputDecoration(hintText: t.ordersSearchHint, prefixIcon: const Icon(Icons.search_rounded)),
                   onChanged: (v) => setState(() => _q = v.trim().toLowerCase()),
                 ),
               ),
-              if (showStatus)
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
-                  child: SegmentedButton<_Filter>(
-                    segments: [
-                      ButtonSegment(
-                        value: _Filter.active,
-                        label: Text('В работе · ${store.orders.where((o) => !o.isDone).length}'),
-                      ),
-                      const ButtonSegment(value: _Filter.done, label: Text('Выполнены')),
-                      const ButtonSegment(value: _Filter.all, label: Text('Все')),
-                    ],
-                    selected: {_filter},
-                    showSelectedIcon: false,
-                    onSelectionChanged: (s) => setState(() => _filter = s.first),
-                  ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+                child: SegmentedButton<_Filter>(
+                  segments: [
+                    if (showStatus) ButtonSegment(value: _Filter.active, label: Text(t.filterActive(activeCount))),
+                    ButtonSegment(value: _Filter.debt, label: Text(t.filterDebt)),
+                    ButtonSegment(value: _Filter.all, label: Text(t.seeAll)),
+                  ],
+                  selected: {filter},
+                  showSelectedIcon: false,
+                  onSelectionChanged: (s) => setState(() => _filter = s.first),
                 ),
+              ),
               if (list.isNotEmpty)
                 Padding(
                   padding: const EdgeInsets.fromLTRB(20, 2, 20, 10),
                   child: Row(children: [
-                    Text(
-                      [
-                        '${list.length} шт',
-                        if (set.show(OrderField.weight) && weight > 0) kg(weight),
-                      ].join(' · '),
-                      style: context.tt.labelLarge?.copyWith(color: context.colors.muted),
-                    ),
+                    Text('${t.pcs(list.length)} · ${money(sum)}',
+                        style: context.tt.labelLarge?.copyWith(color: context.colors.muted)),
                     const Spacer(),
-                    Text(money(sum), style: amountStyle(15)),
+                    if (remain > 0) Text(t.debtPill(money(remain)), style: amountStyle(15, color: context.colors.debt)),
                   ]),
                 ),
               if (list.isEmpty)
                 EmptyState(
-                  icon: Icons.local_shipping_outlined,
-                  title: store.orders.isEmpty ? 'Заказов пока нет' : 'Ничего не найдено',
-                  text: store.orders.isEmpty ? 'Нажмите «Заказ», чтобы добавить первый' : null,
+                  icon: Icons.handyman_outlined,
+                  title: store.orders.isEmpty ? t.noOrdersYet : t.nothingFound,
+                  text: store.orders.isEmpty ? t.noOrdersHint : null,
                 )
               else
                 GroupCard(children: [for (final o in list) OrderTile(o)]),
               if (list.isNotEmpty && showStatus)
                 Padding(
-                  padding: const EdgeInsets.only(top: 12),
+                  padding: const EdgeInsets.only(top: 12, left: 24, right: 24),
                   child: Text(
-                    'Удерживайте заказ, чтобы отметить его выполненным',
+                    t.longPressHint,
                     textAlign: TextAlign.center,
                     style: context.tt.bodySmall?.copyWith(color: context.colors.muted),
                   ),

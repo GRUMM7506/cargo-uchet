@@ -1,7 +1,11 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 
 import '../format.dart';
+import '../l10n.dart';
 import '../models.dart';
+import '../services/photos.dart';
 import '../theme.dart';
 
 // ---------------------------------------------------------------------------
@@ -161,12 +165,17 @@ const _avatarPalette = [
 
 class Avatar extends StatelessWidget {
   final String name;
+  final String? photo;
   final double size;
 
-  const Avatar(this.name, {super.key, this.size = 44});
+  const Avatar(this.name, {super.key, this.photo, this.size = 44});
 
   @override
   Widget build(BuildContext context) {
+    final radius = BorderRadius.circular(size * 0.36);
+    if (Photos.exists(photo)) {
+      return PhotoBox(photo: photo!, size: size, radius: radius);
+    }
     final trimmed = name.trim();
     final parts = trimmed.split(RegExp(r'\s+')).where((s) => s.isNotEmpty).toList();
     final initials = parts.isEmpty
@@ -180,7 +189,7 @@ class Avatar extends StatelessWidget {
       alignment: Alignment.center,
       decoration: BoxDecoration(
         color: color.withValues(alpha: context.isDark ? 0.28 : 0.14),
-        borderRadius: BorderRadius.circular(size * 0.36),
+        borderRadius: radius,
       ),
       child: Text(
         initials,
@@ -189,6 +198,126 @@ class Avatar extends StatelessWidget {
           fontWeight: FontWeight.w700,
           fontSize: size * 0.36,
           color: context.isDark ? Color.lerp(color, Colors.white, 0.45) : color,
+        ),
+      ),
+    );
+  }
+}
+
+/// Квадратная фотография со скруглением.
+class PhotoBox extends StatelessWidget {
+  final String photo;
+  final double size;
+  final BorderRadius radius;
+
+  const PhotoBox({super.key, required this.photo, required this.size, required this.radius});
+
+  @override
+  Widget build(BuildContext context) {
+    final dpr = MediaQuery.of(context).devicePixelRatio;
+    return ClipRRect(
+      borderRadius: radius,
+      child: Image.file(
+        Photos.file(photo),
+        width: size,
+        height: size,
+        fit: BoxFit.cover,
+        cacheWidth: (size * dpr).round(),
+        errorBuilder: (_, __, ___) => Container(width: size, height: size, color: context.cs.surfaceContainerHigh),
+      ),
+    );
+  }
+}
+
+/// Миниатюра заказа: фото работы или значок.
+class OrderThumb extends StatelessWidget {
+  final Order order;
+  final double size;
+
+  const OrderThumb(this.order, {super.key, this.size = 52});
+
+  @override
+  Widget build(BuildContext context) {
+    if (Photos.exists(order.photo)) {
+      return PhotoBox(photo: order.photo!, size: size, radius: BorderRadius.circular(size * 0.3));
+    }
+    final c = context.colors;
+    final done = order.isDone;
+    return IconBadge(
+      done ? Icons.task_alt_rounded : Icons.handyman_outlined,
+      size: size,
+      color: done ? c.income : context.cs.primary,
+      background: done ? c.incomeBg : context.cs.primaryContainer.withValues(alpha: 0.6),
+    );
+  }
+}
+
+/// Выбор фото: камера / галерея / удалить. Возвращает null при отмене.
+Future<({String? name, bool removed})?> choosePhoto(
+  BuildContext context, {
+  required bool hasPhoto,
+  required String prefix,
+}) async {
+  final action = await showModalBottomSheet<String>(
+    context: context,
+    builder: (ctx) => SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(8, 0, 8, 12),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          ListTile(
+            leading: const Icon(Icons.photo_camera_outlined),
+            title: Text(t.takePhoto),
+            onTap: () => Navigator.pop(ctx, 'camera'),
+          ),
+          ListTile(
+            leading: const Icon(Icons.photo_library_outlined),
+            title: Text(t.fromGallery),
+            onTap: () => Navigator.pop(ctx, 'gallery'),
+          ),
+          if (hasPhoto)
+            ListTile(
+              leading: Icon(Icons.delete_outline_rounded, color: ctx.colors.expense),
+              title: Text(t.removePhoto, style: TextStyle(color: ctx.colors.expense)),
+              onTap: () => Navigator.pop(ctx, 'remove'),
+            ),
+        ]),
+      ),
+    ),
+  );
+  if (action == null) return null;
+  if (action == 'remove') return (name: null, removed: true);
+  try {
+    final name = await Photos.pick(camera: action == 'camera', prefix: prefix);
+    if (name == null) return null;
+    return (name: name, removed: false);
+  } catch (e) {
+    if (context.mounted) toast(context, t.error(e));
+    return null;
+  }
+}
+
+/// Полноэкранный просмотр фото с масштабированием.
+class PhotoViewerPage extends StatelessWidget {
+  final String photo;
+
+  const PhotoViewerPage({super.key, required this.photo});
+
+  static void open(BuildContext context, String photo) =>
+      Navigator.push(context, MaterialPageRoute(builder: (_) => PhotoViewerPage(photo: photo)));
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      appBar: AppBar(
+        backgroundColor: Colors.black,
+        foregroundColor: Colors.white,
+        iconTheme: const IconThemeData(color: Colors.white),
+      ),
+      body: Center(
+        child: InteractiveViewer(
+          maxScale: 5,
+          child: Image.file(File(Photos.file(photo).path)),
         ),
       ),
     );
@@ -236,7 +365,7 @@ class Pill extends StatelessWidget {
   }
 }
 
-/// Долг / аванс / рассчитан.
+/// Долг / переплата / рассчитан.
 class BalancePill extends StatelessWidget {
   final int cents;
 
@@ -245,24 +374,44 @@ class BalancePill extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = context.colors;
-    if (cents > 0) return Pill('долг ${money(cents)}', color: c.debt, background: c.debtBg);
-    if (cents < 0) return Pill('аванс ${money(-cents)}', color: c.income, background: c.incomeBg);
-    return Pill('рассчитан', color: c.muted, background: context.cs.surfaceContainerHigh, icon: Icons.check_rounded);
+    if (cents > 0) return Pill(t.debtPill(money(cents)), color: c.debt, background: c.debtBg);
+    if (cents < 0) return Pill(t.overpaidPill(money(-cents)), color: c.income, background: c.incomeBg);
+    return Pill(t.settledPill, color: c.muted, background: context.cs.surfaceContainerHigh, icon: Icons.check_rounded);
   }
 }
 
-class StatusPill extends StatelessWidget {
-  final bool done;
+/// Остаток по заказу: «долг $X» или «оплачен».
+class RemainingPill extends StatelessWidget {
+  final int cents;
 
-  const StatusPill(this.done, {super.key});
+  const RemainingPill(this.cents, {super.key});
 
   @override
   Widget build(BuildContext context) {
     final c = context.colors;
-    return done
-        ? Pill('выполнен', color: c.income, background: c.incomeBg, icon: Icons.check_rounded)
-        : Pill('в работе', color: context.cs.primary, background: context.cs.primaryContainer.withValues(alpha: 0.6),
-            icon: Icons.schedule_rounded);
+    return cents > 0
+        ? Pill(t.debtPill(money(cents)), color: c.debt, background: c.debtBg)
+        : Pill(t.paidPill, color: c.income, background: c.incomeBg, icon: Icons.check_rounded);
+  }
+}
+
+/// Статус заказа: в работе / выполнен / просрочен.
+class StatusPill extends StatelessWidget {
+  final Order order;
+
+  const StatusPill(this.order, {super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    if (order.isDone) return Pill(t.done, color: c.income, background: c.incomeBg, icon: Icons.check_rounded);
+    if (order.isOverdue) {
+      return Pill(t.overdue, color: c.expense, background: c.expenseBg, icon: Icons.warning_amber_rounded);
+    }
+    return Pill(t.inWork,
+        color: context.cs.primary,
+        background: context.cs.primaryContainer.withValues(alpha: 0.6),
+        icon: Icons.schedule_rounded);
   }
 }
 
@@ -307,19 +456,19 @@ class EmptyState extends StatelessWidget {
   }
 }
 
-Future<bool> confirm(BuildContext context, String text, {String ok = 'Удалить', bool danger = true}) async {
+Future<bool> confirm(BuildContext context, String text, {String? ok, bool danger = true}) async {
   final r = await showDialog<bool>(
     context: context,
     builder: (ctx) => AlertDialog(
       content: Text(text, style: const TextStyle(fontSize: 16)),
       actions: [
-        TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Отмена')),
+        TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(t.cancel)),
         FilledButton(
           style: danger
               ? FilledButton.styleFrom(backgroundColor: ctx.colors.expense, minimumSize: const Size(64, 44))
               : FilledButton.styleFrom(minimumSize: const Size(64, 44)),
           onPressed: () => Navigator.pop(ctx, true),
-          child: Text(ok),
+          child: Text(ok ?? t.delete),
         ),
       ],
     ),
@@ -377,21 +526,20 @@ class DateField extends StatelessWidget {
 // Даты
 // ---------------------------------------------------------------------------
 
-const _monthsGen = [
-  'января', 'февраля', 'марта', 'апреля', 'мая', 'июня',
-  'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря',
-];
-const _weekdays = ['пн', 'вт', 'ср', 'чт', 'пт', 'сб', 'вс'];
-
-/// «Сегодня», «Вчера», «12 ноября, ср».
+/// «Сегодня», «Вчера», «12 ноября, ср» / «Bugun», «12-noyabr, ch».
 String dayLabel(DateTime d, {bool withYear = false}) {
-  final t = today();
+  final now = today();
   final day = DateTime(d.year, d.month, d.day);
-  final diff = t.difference(day).inDays;
-  final base = '${d.day} ${_monthsGen[d.month - 1]}${withYear || d.year != t.year ? ' ${d.year}' : ''}';
-  if (diff == 0) return withYear ? 'Сегодня, $base' : 'Сегодня';
-  if (diff == 1) return withYear ? 'Вчера, $base' : 'Вчера';
-  return '$base, ${_weekdays[d.weekday - 1]}';
+  final diff = now.difference(day).inDays;
+  final base = '${t.dayMonth(d.day, d.month)}${withYear || d.year != now.year ? ' ${d.year}' : ''}';
+  if (diff == 0) return withYear ? '${t.today}, $base' : t.today;
+  if (diff == 1) return withYear ? '${t.yesterday}, $base' : t.yesterday;
+  return '$base, ${t.weekdays[d.weekday - 1]}';
 }
 
-String shortDay(DateTime d) => '${d.day} ${_monthsGen[d.month - 1].substring(0, 3)}';
+/// «12 ноя» / «12-noy».
+String shortDay(DateTime d) {
+  final m = t.monthShort[d.month - 1];
+  final base = t.code == 'uz' ? '${d.day}-$m' : '${d.day} $m';
+  return d.year == today().year ? base : '$base ${d.year}';
+}

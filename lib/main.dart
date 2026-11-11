@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 
+import 'l10n.dart';
 import 'screens/clients_screen.dart';
 import 'screens/expenses_screen.dart';
 import 'screens/home_screen.dart';
@@ -16,29 +17,63 @@ Future<void> main() async {
   runApp(const UchetApp());
 }
 
-class UchetApp extends StatelessWidget {
+class UchetApp extends StatefulWidget {
   const UchetApp({super.key});
 
   @override
+  State<UchetApp> createState() => _UchetAppState();
+}
+
+class _UchetAppState extends State<UchetApp> {
+  final _settings = AppSettings.I;
+  late String _lang = _settings.lang;
+
+  @override
+  void initState() {
+    super.initState();
+    _settings.addListener(_onSettings);
+  }
+
+  @override
+  void dispose() {
+    _settings.removeListener(_onSettings);
+    super.dispose();
+  }
+
+  void _onSettings() {
+    setState(() {});
+    if (_settings.lang != _lang) {
+      _lang = _settings.lang;
+      // Тексты берутся из глобального t, поэтому после смены языка
+      // перерисовываем всё дерево целиком (включая открытые экраны).
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        void rebuild(Element e) {
+          e.markNeedsBuild();
+          e.visitChildren(rebuild);
+        }
+
+        (context as Element).visitChildren(rebuild);
+      });
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final settings = AppSettings.I;
-    return ListenableBuilder(
-      listenable: settings,
-      builder: (context, _) => MaterialApp(
-        title: 'Учёт',
-        debugShowCheckedModeBanner: false,
-        locale: const Locale('ru'),
-        supportedLocales: const [Locale('ru'), Locale('en')],
-        localizationsDelegates: const [
-          GlobalMaterialLocalizations.delegate,
-          GlobalWidgetsLocalizations.delegate,
-          GlobalCupertinoLocalizations.delegate,
-        ],
-        themeMode: settings.themeMode,
-        theme: buildTheme(Brightness.light, settings.accent),
-        darkTheme: buildTheme(Brightness.dark, settings.accent),
-        home: const HomeShell(),
-      ),
+    final s = _settings;
+    return MaterialApp(
+      title: t.appTitle,
+      debugShowCheckedModeBanner: false,
+      locale: Locale(s.lang),
+      supportedLocales: const [Locale('ru'), Locale('uz'), Locale('en')],
+      localizationsDelegates: const [
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+      themeMode: s.themeMode,
+      theme: buildTheme(Brightness.light, s.accent),
+      darkTheme: buildTheme(Brightness.dark, s.accent),
+      home: const HomeShell(),
     );
   }
 }
@@ -68,19 +103,32 @@ class _HomeShellState extends State<HomeShell> {
         selectedIndex: _tab,
         onDestinationSelected: (i) => setState(() => _tab = i),
         labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
-        destinations: const [
+        destinations: [
           NavigationDestination(
-              icon: Icon(Icons.space_dashboard_outlined), selectedIcon: Icon(Icons.space_dashboard_rounded), label: 'Главная'),
+            icon: const Icon(Icons.space_dashboard_outlined),
+            selectedIcon: const Icon(Icons.space_dashboard_rounded),
+            label: t.tabHome,
+          ),
           NavigationDestination(
-              icon: Icon(Icons.people_outline_rounded), selectedIcon: Icon(Icons.people_rounded), label: 'Клиенты'),
+            icon: const Icon(Icons.people_outline_rounded),
+            selectedIcon: const Icon(Icons.people_rounded),
+            label: t.tabClients,
+          ),
           NavigationDestination(
-              icon: Icon(Icons.local_shipping_outlined), selectedIcon: Icon(Icons.local_shipping_rounded), label: 'Заказы'),
+            icon: const Icon(Icons.handyman_outlined),
+            selectedIcon: const Icon(Icons.handyman_rounded),
+            label: t.tabOrders,
+          ),
           NavigationDestination(
-              icon: Icon(Icons.account_balance_wallet_outlined),
-              selectedIcon: Icon(Icons.account_balance_wallet_rounded),
-              label: 'Расходы'),
+            icon: const Icon(Icons.account_balance_wallet_outlined),
+            selectedIcon: const Icon(Icons.account_balance_wallet_rounded),
+            label: t.tabExpenses,
+          ),
           NavigationDestination(
-              icon: Icon(Icons.insert_chart_outlined_rounded), selectedIcon: Icon(Icons.insert_chart_rounded), label: 'Отчёты'),
+            icon: const Icon(Icons.insert_chart_outlined_rounded),
+            selectedIcon: const Icon(Icons.insert_chart_rounded),
+            label: t.tabReports,
+          ),
         ],
       ),
     );

@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 
 import '../format.dart';
 import '../forms.dart';
+import '../l10n.dart';
 import '../models.dart';
+import '../settings.dart';
 import '../store.dart';
 import '../theme.dart';
 import '../widgets/charts.dart';
@@ -23,19 +25,19 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
   Widget build(BuildContext context) {
     final store = AppStore.I;
     return ListenableBuilder(
-      listenable: store,
+      listenable: Listenable.merge([store, AppSettings.I]),
       builder: (context, _) {
         final list = store.expenses.where((e) => _month.contains(e.spentAt)).toList();
         final s = store.summary(_month);
         final c = context.colors;
         final prev = store.summary(_month.prev).expenseCents;
         return Scaffold(
-          appBar: AppBar(title: const Text('Расходы')),
+          appBar: AppBar(title: Text(t.tabExpenses)),
           floatingActionButton: FloatingActionButton.extended(
             backgroundColor: c.expense,
             foregroundColor: Colors.white,
             icon: const Icon(Icons.add_rounded),
-            label: const Text('Расход'),
+            label: Text(t.expenseOne),
             onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ExpenseFormPage())),
           ),
           body: ListView(
@@ -52,18 +54,14 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
                       const SizedBox(width: 14),
                       Expanded(
                         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                          Text('Потрачено за ${_month.name.toLowerCase()}',
-                              style: context.tt.bodyMedium?.copyWith(color: c.muted)),
+                          Text(t.spentIn(_month.name), style: context.tt.bodyMedium?.copyWith(color: c.muted)),
                           Text(money(s.expenseCents), style: amountStyle(28, color: c.expense)),
                         ]),
                       ),
                     ]),
                     if (prev > 0 || s.expenseCents > 0) ...[
                       const SizedBox(height: 10),
-                      Text(
-                        _compare(s.expenseCents, prev),
-                        style: context.tt.bodySmall?.copyWith(color: c.muted),
-                      ),
+                      Text(_compare(s.expenseCents, prev), style: context.tt.bodySmall?.copyWith(color: c.muted)),
                     ],
                     if (s.expensesByCategory.isNotEmpty) ...[
                       const SizedBox(height: 10),
@@ -82,11 +80,7 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
                 ),
               ),
               if (list.isEmpty)
-                const EmptyState(
-                  icon: Icons.savings_outlined,
-                  title: 'Расходов нет',
-                  text: 'В этом месяце ещё ничего не потрачено',
-                )
+                EmptyState(icon: Icons.savings_outlined, title: t.noExpenses, text: t.noExpensesHint)
               else
                 DayGroupedList(items: [for (final e in list) (e.spentAt, ExpenseTile(e))]),
             ],
@@ -97,12 +91,10 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
   }
 
   String _compare(int now, int prev) {
-    if (prev == 0) return 'В прошлом месяце расходов не было';
+    if (prev == 0) return t.noExpensesPrev;
     final diff = now - prev;
     final pct = (diff.abs() / prev * 100).round();
-    if (diff == 0) return 'Столько же, сколько в прошлом месяце';
-    return diff > 0
-        ? 'На ${money(diff)} больше, чем в прошлом месяце (+$pct%)'
-        : 'На ${money(-diff)} меньше, чем в прошлом месяце (−$pct%)';
+    if (diff == 0) return t.sameAsPrev;
+    return diff > 0 ? t.moreThanPrev(money(diff), pct) : t.lessThanPrev(money(-diff), pct);
   }
 }

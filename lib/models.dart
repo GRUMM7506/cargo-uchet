@@ -1,5 +1,7 @@
 // Модели данных. Все суммы хранятся в центах (int), чтобы не было ошибок округления.
 
+import 'l10n.dart';
+
 String dateToDb(DateTime d) =>
     '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
 
@@ -8,78 +10,31 @@ DateTime dateFromDb(String s) {
   return DateTime(int.parse(p[0]), int.parse(p[1]), int.parse(p[2]));
 }
 
+DateTime? dateFromDbOrNull(Object? s) => s == null ? null : dateFromDb(s as String);
+
 DateTime today() {
   final n = DateTime.now();
   return DateTime(n.year, n.month, n.day);
 }
 
-/// Как считается сумма заказа.
-enum Pricing {
-  fixed('fixed', 'Сумма'),
-  perKg('kg', 'За кг'),
-  perUnit('unit', 'За шт');
-
-  final String db;
-  final String label;
-  const Pricing(this.db, this.label);
-
-  static Pricing fromDb(String? s) => Pricing.values.firstWhere((p) => p.db == s, orElse: () => Pricing.fixed);
-}
-
 /// Поля заказа, которые можно скрыть в настройках.
-enum OrderField {
-  description('description', 'Груз / описание'),
-  code('code', 'Трек-номер / код'),
-  weight('weight', 'Вес, кг'),
-  quantity('quantity', 'Количество, шт'),
-  pricing('pricing', 'Цена за кг / за шт'),
-  extra('extra', 'Доплата / скидка'),
-  done('done', 'Статус и дата выполнения'),
-  note('note', 'Заметка');
-
-  final String key;
-  final String label;
-  const OrderField(this.key, this.label);
-}
-
-/// Сумма заказа по тарифу. Для фиксированной цены возвращает null.
-int? computeOrderAmount({
-  required Pricing pricing,
-  required int? rateCents,
-  required double? weightKg,
-  required int? quantity,
-  int extraCents = 0,
-}) {
-  if (rateCents == null) return null;
-  switch (pricing) {
-    case Pricing.fixed:
-      return null;
-    case Pricing.perKg:
-      if (weightKg == null) return null;
-      return (weightKg * rateCents).round() + extraCents;
-    case Pricing.perUnit:
-      if (quantity == null) return null;
-      return quantity * rateCents + extraCents;
-  }
-}
+enum OrderField { photo, description, deposit, due, done, note }
 
 class Client {
   final int? id;
   final String name;
   final String phone;
   final String note;
+  final String? photo; // имя файла в папке photos
 
-  /// Личная цена за кг для этого клиента (если отличается от обычной).
-  final int? rateKgCents;
-
-  const Client({this.id, required this.name, this.phone = '', this.note = '', this.rateKgCents});
+  const Client({this.id, required this.name, this.phone = '', this.note = '', this.photo});
 
   Map<String, Object?> toMap() => {
         'id': id,
         'name': name,
         'phone': phone,
         'note': note,
-        'rate_kg_cents': rateKgCents,
+        'photo': photo,
       };
 
   factory Client.fromMap(Map<String, Object?> m) => Client(
@@ -87,7 +42,7 @@ class Client {
         name: m['name'] as String,
         phone: (m['phone'] as String?) ?? '',
         note: (m['note'] as String?) ?? '',
-        rateKgCents: m['rate_kg_cents'] as int?,
+        photo: m['photo'] as String?,
       );
 }
 
@@ -95,18 +50,12 @@ class Order {
   final int? id;
   final int clientId;
   final String description;
-  final String code;
-  final double? weightKg;
-  final int? quantity;
-  final Pricing pricing;
-
-  /// Цена за кг или за шт (зависит от [pricing]).
-  final int? rateCents;
-  final int extraCents;
-
-  /// Итоговая сумма заказа (для тарифа — уже посчитанная).
-  final int amountCents;
+  final String? photo;
+  final int priceCents;
+  final int depositCents;
+  final DateTime? depositAt;
   final DateTime acceptedAt;
+  final DateTime? dueAt;
   final DateTime? doneAt;
   final String note;
 
@@ -114,34 +63,35 @@ class Order {
     this.id,
     required this.clientId,
     this.description = '',
-    this.code = '',
-    this.weightKg,
-    this.quantity,
-    this.pricing = Pricing.fixed,
-    this.rateCents,
-    this.extraCents = 0,
-    required this.amountCents,
+    this.photo,
+    required this.priceCents,
+    this.depositCents = 0,
+    this.depositAt,
     required this.acceptedAt,
+    this.dueAt,
     this.doneAt,
     this.note = '',
   });
 
   bool get isDone => doneAt != null;
 
-  String get title => description.isNotEmpty ? description : (code.isNotEmpty ? code : 'Заказ');
+  /// Дата, которой учитывается залог (по умолчанию — дата приёма).
+  DateTime get depositDate => depositAt ?? acceptedAt;
 
-  Order copyWith({DateTime? doneAt, bool clearDone = false}) => Order(
+  bool get isOverdue => !isDone && dueAt != null && dueAt!.isBefore(today());
+
+  String get title => description.isNotEmpty ? description : t.order;
+
+  Order copyWith({DateTime? doneAt, bool clearDone = false, String? photo, bool clearPhoto = false}) => Order(
         id: id,
         clientId: clientId,
         description: description,
-        code: code,
-        weightKg: weightKg,
-        quantity: quantity,
-        pricing: pricing,
-        rateCents: rateCents,
-        extraCents: extraCents,
-        amountCents: amountCents,
+        photo: clearPhoto ? null : (photo ?? this.photo),
+        priceCents: priceCents,
+        depositCents: depositCents,
+        depositAt: depositAt,
         acceptedAt: acceptedAt,
+        dueAt: dueAt,
         doneAt: clearDone ? null : (doneAt ?? this.doneAt),
         note: note,
       );
@@ -150,14 +100,12 @@ class Order {
         'id': id,
         'client_id': clientId,
         'description': description,
-        'code': code,
-        'weight_kg': weightKg,
-        'quantity': quantity,
-        'pricing': pricing.db,
-        'rate_cents': rateCents,
-        'extra_cents': extraCents,
-        'amount_cents': amountCents,
+        'photo': photo,
+        'amount_cents': priceCents,
+        'deposit_cents': depositCents,
+        'deposit_at': depositAt == null ? null : dateToDb(depositAt!),
         'accepted_at': dateToDb(acceptedAt),
+        'due_at': dueAt == null ? null : dateToDb(dueAt!),
         'done_at': doneAt == null ? null : dateToDb(doneAt!),
         'note': note,
       };
@@ -166,15 +114,13 @@ class Order {
         id: m['id'] as int,
         clientId: m['client_id'] as int,
         description: (m['description'] as String?) ?? '',
-        code: (m['code'] as String?) ?? '',
-        weightKg: (m['weight_kg'] as num?)?.toDouble(),
-        quantity: m['quantity'] as int?,
-        pricing: Pricing.fromDb(m['pricing'] as String?),
-        rateCents: m['rate_cents'] as int?,
-        extraCents: (m['extra_cents'] as int?) ?? 0,
-        amountCents: m['amount_cents'] as int,
+        photo: m['photo'] as String?,
+        priceCents: m['amount_cents'] as int,
+        depositCents: (m['deposit_cents'] as int?) ?? 0,
+        depositAt: dateFromDbOrNull(m['deposit_at']),
         acceptedAt: dateFromDb(m['accepted_at'] as String),
-        doneAt: m['done_at'] == null ? null : dateFromDb(m['done_at'] as String),
+        dueAt: dateFromDbOrNull(m['due_at']),
+        doneAt: dateFromDbOrNull(m['done_at']),
         note: (m['note'] as String?) ?? '',
       );
 }
@@ -262,15 +208,9 @@ class YearMonth implements Comparable<YearMonth> {
 
   bool contains(DateTime d) => d.year == year && d.month == month;
 
-  static const names = [
-    'Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь',
-    'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь',
-  ];
-  static const short = ['янв', 'фев', 'мар', 'апр', 'май', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек'];
-
-  String get label => '${names[month - 1]} $year';
-  String get name => names[month - 1];
-  String get shortLabel => short[month - 1];
+  String get name => t.monthNames[month - 1];
+  String get label => '$name $year';
+  String get shortLabel => t.monthShort[month - 1];
   String get fileLabel => '$year-${month.toString().padLeft(2, '0')}';
 
   @override
@@ -286,29 +226,23 @@ class YearMonth implements Comparable<YearMonth> {
 /// Итоги за месяц.
 class MonthSummary {
   final YearMonth month;
-  final int incomeCents; // оплаты, полученные в месяце
+  final int paymentsCents; // оплаты, полученные в месяце
+  final int depositsCents; // залоги, полученные в месяце
   final int expenseCents; // расходы месяца
   final int ordersCents; // сумма заказов, принятых в месяце
   final int ordersCount;
-  final double weightKg;
-  final int weightedOrdersCents; // сумма заказов, у которых указан вес
   final Map<String, int> expensesByCategory;
 
   const MonthSummary({
     required this.month,
-    required this.incomeCents,
+    required this.paymentsCents,
+    required this.depositsCents,
     required this.expenseCents,
     required this.ordersCents,
     required this.ordersCount,
-    required this.weightKg,
-    required this.weightedOrdersCents,
     required this.expensesByCategory,
   });
 
+  int get incomeCents => paymentsCents + depositsCents;
   int get profitCents => incomeCents - expenseCents;
-
-  /// Средняя цена за кг по заказам месяца (в центах), если есть вес.
-  int? get avgPerKgCents => weightKg > 0 ? (weightedOrdersCents / weightKg).round() : null;
-
-  bool get isEmpty => incomeCents == 0 && expenseCents == 0 && ordersCount == 0;
 }

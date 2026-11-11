@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../format.dart';
+import '../l10n.dart';
 import '../models.dart';
 import '../services/export_service.dart';
 import '../settings.dart';
@@ -28,7 +29,7 @@ class _MonthReportScreenState extends State<MonthReportScreen> {
     try {
       await job();
     } catch (e) {
-      if (mounted) toast(context, 'Ошибка экспорта: $e');
+      if (mounted) toast(context, t.exportError(e));
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -43,37 +44,39 @@ class _MonthReportScreenState extends State<MonthReportScreen> {
       builder: (context, _) {
         final s = store.summary(m);
         final c = context.colors;
-        final set = AppSettings.I;
+        // кто сколько внёс за месяц: оплаты + залоги
         final byClient = <int, int>{};
         for (final p in store.payments) {
           if (m.contains(p.paidAt)) byClient[p.clientId] = (byClient[p.clientId] ?? 0) + p.amountCents;
         }
+        for (final o in store.orders) {
+          if (o.depositCents > 0 && m.contains(o.depositDate)) {
+            byClient[o.clientId] = (byClient[o.clientId] ?? 0) + o.depositCents;
+          }
+        }
         final payers = byClient.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
-        final debtors = store.clients.where((x) => store.balanceOf(x.id!) > 0).toList()
-          ..sort((a, b) => store.balanceOf(b.id!).compareTo(store.balanceOf(a.id!)));
+        final debtors = store.debtors;
 
         return Scaffold(
-          appBar: AppBar(title: const Text('Отчёт')),
+          appBar: AppBar(title: Text(t.report)),
           body: ListView(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 32),
             children: [
               Center(child: MonthSwitcher(month: m, onChanged: (x) => setState(() => _month = x))),
               const SizedBox(height: 14),
               SectionCard(children: [
-                KeyValue('Пришло (оплаты)', money(s.incomeCents), color: c.income),
-                KeyValue('Потрачено (расходы)', money(s.expenseCents), color: c.expense),
+                KeyValue(t.incomeFull, money(s.incomeCents), color: c.income),
+                KeyValue(t.expenseFull, money(s.expenseCents), color: c.expense),
                 const Divider(height: 18),
-                KeyValue(s.profitCents >= 0 ? 'Прибыль' : 'Убыток', money(s.profitCents),
+                KeyValue(s.profitCents >= 0 ? t.profit : t.loss, money(s.profitCents),
                     color: s.profitCents >= 0 ? c.income : c.expense, strong: true),
               ]),
               const SizedBox(height: 12),
-              SectionCard(title: 'Заказы', children: [
-                KeyValue('Принято заказов', '${s.ordersCount}'),
-                KeyValue('На сумму', money(s.ordersCents)),
-                if (set.show(OrderField.weight) && s.weightKg > 0) KeyValue('Общий вес', kg(s.weightKg)),
-                if (set.show(OrderField.weight) && s.avgPerKgCents != null)
-                  KeyValue('Средняя цена за кг', money(s.avgPerKgCents!)),
-                KeyValue('Клиенты должны сейчас', money(store.totalDebt), color: c.debt),
+              SectionCard(title: t.tabOrders, children: [
+                KeyValue(t.ordersAccepted, '${s.ordersCount}'),
+                KeyValue(t.onSum, money(s.ordersCents)),
+                KeyValue(t.depositsReceived, money(s.depositsCents), color: c.income),
+                KeyValue(t.debtNow, money(store.totalDebt), color: c.debt),
               ]),
               const SizedBox(height: 12),
               _busy
@@ -97,7 +100,7 @@ class _MonthReportScreenState extends State<MonthReportScreen> {
                     ]),
               if (s.expensesByCategory.isNotEmpty) ...[
                 const SizedBox(height: 12),
-                SectionCard(title: 'Расходы по категориям', children: [
+                SectionCard(title: t.byCategory, children: [
                   for (final e in s.expensesByCategory.entries)
                     ShareBar(
                       label: e.key,
@@ -110,12 +113,12 @@ class _MonthReportScreenState extends State<MonthReportScreen> {
               ],
               if (payers.isNotEmpty) ...[
                 const SizedBox(height: 12),
-                SectionCard(title: 'Кто сколько заплатил', children: [
+                SectionCard(title: t.whoPaid, children: [
                   for (final e in payers)
                     Padding(
                       padding: const EdgeInsets.symmetric(vertical: 5),
                       child: Row(children: [
-                        Avatar(store.clientName(e.key), size: 32),
+                        Avatar(store.clientName(e.key), photo: store.clientById(e.key)?.photo, size: 32),
                         const SizedBox(width: 10),
                         Expanded(child: Text(store.clientName(e.key), style: context.tt.bodyMedium)),
                         Text(money(e.value), style: amountStyle(14, color: c.income)),
@@ -125,12 +128,12 @@ class _MonthReportScreenState extends State<MonthReportScreen> {
               ],
               if (debtors.isNotEmpty) ...[
                 const SizedBox(height: 12),
-                SectionCard(title: 'Должники на сегодня', children: [
+                SectionCard(title: t.debtorsToday, children: [
                   for (final x in debtors)
                     Padding(
                       padding: const EdgeInsets.symmetric(vertical: 5),
                       child: Row(children: [
-                        Avatar(x.name, size: 32),
+                        Avatar(x.name, photo: x.photo, size: 32),
                         const SizedBox(width: 10),
                         Expanded(child: Text(x.name, style: context.tt.bodyMedium)),
                         BalancePill(store.balanceOf(x.id!)),

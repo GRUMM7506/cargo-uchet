@@ -37,8 +37,13 @@ jobs:
           if [ ! -d android ]; then
             flutter create . --platforms=android --org com.akbar --project-name cargo_uchet 2>&1 | tee -a ci.log
           fi
-          # Название приложения на рабочем столе
-          sed -i 's/android:label="[^"]*"/android:label="Учёт"/' android/app/src/main/AndroidManifest.xml
+          # Название приложения на рабочем столе (по языку телефона)
+          RES=android/app/src/main/res
+          mkdir -p $RES/values $RES/values-uz
+          printf '<?xml version="1.0" encoding="utf-8"?>\n<resources><string name="app_name">Учёт</string></resources>\n' > $RES/values/strings.xml
+          printf '<?xml version="1.0" encoding="utf-8"?>\n<resources><string name="app_name">Hisob-kitob</string></resources>\n' > $RES/values-uz/strings.xml
+          sed -i 's/android:label="[^"]*"/android:label="@string\/app_name"/' android/app/src/main/AndroidManifest.xml
+          grep -n 'android:label' android/app/src/main/AndroidManifest.xml | tee -a ci.log
 
       - name: Stable signing key (so updates install over the old version)
         run: |

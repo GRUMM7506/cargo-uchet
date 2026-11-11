@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 
 import '../format.dart';
 import '../forms.dart';
+import '../l10n.dart';
 import '../models.dart';
+import '../services/photos.dart';
 import '../settings.dart';
 import '../store.dart';
 import '../theme.dart';
@@ -35,10 +37,10 @@ class _ClientsScreenState extends State<ClientsScreen> {
           list.sort((a, b) => store.balanceOf(b.id!).compareTo(store.balanceOf(a.id!)));
         }
         return Scaffold(
-          appBar: AppBar(title: const Text('Клиенты')),
+          appBar: AppBar(title: Text(t.tabClients)),
           floatingActionButton: FloatingActionButton.extended(
             icon: const Icon(Icons.person_add_alt_1_rounded),
-            label: const Text('Клиент'),
+            label: Text(t.client),
             onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ClientFormPage())),
           ),
           body: ListView(
@@ -49,7 +51,7 @@ class _ClientsScreenState extends State<ClientsScreen> {
                 child: Row(children: [
                   Expanded(
                     child: _SummaryTile(
-                      label: 'Должны',
+                      label: t.owe,
                       value: money(store.totalDebt),
                       color: context.colors.debt,
                       background: context.colors.debtBg,
@@ -58,8 +60,8 @@ class _ClientsScreenState extends State<ClientsScreen> {
                   const SizedBox(width: 10),
                   Expanded(
                     child: _SummaryTile(
-                      label: 'Авансы',
-                      value: money(store.totalAdvance),
+                      label: t.overpayments,
+                      value: money(store.totalOverpaid),
                       color: context.colors.income,
                       background: context.colors.incomeBg,
                     ),
@@ -69,27 +71,23 @@ class _ClientsScreenState extends State<ClientsScreen> {
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
                 child: TextField(
-                  decoration: const InputDecoration(
-                    hintText: 'Поиск по имени или телефону',
-                    prefixIcon: Icon(Icons.search_rounded),
-                  ),
+                  decoration: InputDecoration(hintText: t.clientsSearchHint, prefixIcon: const Icon(Icons.search_rounded)),
                   onChanged: (v) => setState(() => _q = v.trim().toLowerCase()),
                 ),
               ),
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 6, 16, 10),
                 child: Row(children: [
-                  Text('${list.length} ${_word(list.length)}',
-                      style: context.tt.labelLarge?.copyWith(color: context.colors.muted)),
+                  Text(t.clientsCount(list.length), style: context.tt.labelLarge?.copyWith(color: context.colors.muted)),
                   const Spacer(),
                   ChoiceChip(
-                    label: const Text('Должники'),
+                    label: Text(t.sortDebtors),
                     selected: _sort == _Sort.debt,
                     onSelected: (_) => setState(() => _sort = _Sort.debt),
                   ),
                   const SizedBox(width: 6),
                   ChoiceChip(
-                    label: const Text('А–Я'),
+                    label: Text(t.sortAz),
                     selected: _sort == _Sort.name,
                     onSelected: (_) => setState(() => _sort = _Sort.name),
                   ),
@@ -98,8 +96,8 @@ class _ClientsScreenState extends State<ClientsScreen> {
               if (list.isEmpty)
                 EmptyState(
                   icon: Icons.people_outline_rounded,
-                  title: store.clients.isEmpty ? 'Клиентов пока нет' : 'Никого не найдено',
-                  text: store.clients.isEmpty ? 'Добавьте первого клиента кнопкой ниже' : null,
+                  title: store.clients.isEmpty ? t.noClients : t.nobodyFound,
+                  text: store.clients.isEmpty ? t.noClientsHint : null,
                 )
               else
                 GroupCard(children: [
@@ -117,13 +115,6 @@ class _ClientsScreenState extends State<ClientsScreen> {
         );
       },
     );
-  }
-
-  String _word(int n) {
-    final m10 = n % 10, m100 = n % 100;
-    if (m10 == 1 && m100 != 11) return 'клиент';
-    if (m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14)) return 'клиента';
-    return 'клиентов';
   }
 }
 
@@ -175,16 +166,15 @@ class _ClientDetailScreenState extends State<ClientDetailScreen> {
         if (c == null) {
           return Scaffold(
             appBar: AppBar(),
-            body: const EmptyState(icon: Icons.person_off_outlined, title: 'Клиент удалён'),
+            body: EmptyState(icon: Icons.person_off_outlined, title: t.clientDeleted),
           );
         }
         final orders = store.ordersOf(c.id!);
         final payments = store.paymentsOf(c.id!);
         final balance = store.balanceOf(c.id!);
-        final totalOrders = orders.fold(0, (a, o) => a + o.amountCents);
+        final totalOrders = orders.fold(0, (a, o) => a + o.priceCents);
+        final totalDeposits = orders.fold(0, (a, o) => a + o.depositCents);
         final totalPaid = payments.fold(0, (a, p) => a + p.amountCents);
-        final weight = orders.fold(0.0, (a, o) => a + (o.weightKg ?? 0));
-        final set = AppSettings.I;
         final col = context.colors;
         final balColor = balance > 0 ? col.debt : (balance < 0 ? col.income : col.muted);
 
@@ -193,7 +183,7 @@ class _ClientDetailScreenState extends State<ClientDetailScreen> {
             actions: [
               IconButton(
                 icon: const Icon(Icons.edit_outlined),
-                tooltip: 'Изменить',
+                tooltip: t.edit,
                 onPressed: () async {
                   final r = await Navigator.push<int>(
                     context,
@@ -209,15 +199,32 @@ class _ClientDetailScreenState extends State<ClientDetailScreen> {
             padding: const EdgeInsets.only(bottom: 32),
             children: [
               Padding(
-                padding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
+                padding: const EdgeInsets.symmetric(horizontal: 16),
                 child: Row(children: [
-                  Avatar(c.name, size: 60),
+                  GestureDetector(
+                    onTap: () async {
+                      if (Photos.exists(c.photo)) {
+                        PhotoViewerPage.open(context, c.photo!);
+                        return;
+                      }
+                      final r = await choosePhoto(context, hasPhoto: false, prefix: 'c');
+                      if (r?.name != null) {
+                        await store.saveClient(Client(
+                          id: c.id,
+                          name: c.name,
+                          phone: c.phone,
+                          note: c.note,
+                          photo: r!.name,
+                        ));
+                      }
+                    },
+                    child: Avatar(c.name, photo: c.photo, size: 68),
+                  ),
                   const SizedBox(width: 14),
                   Expanded(
                     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                       Text(c.name, style: context.tt.headlineSmall),
-                      if (c.phone.isNotEmpty)
-                        Text(c.phone, style: context.tt.bodyMedium?.copyWith(color: col.muted)),
+                      if (c.phone.isNotEmpty) Text(c.phone, style: context.tt.bodyMedium?.copyWith(color: col.muted)),
                     ]),
                   ),
                 ]),
@@ -227,21 +234,16 @@ class _ClientDetailScreenState extends State<ClientDetailScreen> {
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 child: SectionCard(children: [
                   Text(
-                    balance > 0 ? 'Долг' : (balance < 0 ? 'Аванс' : 'Баланс'),
+                    balance > 0 ? t.debt : (balance < 0 ? t.overpaid : t.settled),
                     style: context.tt.labelLarge?.copyWith(color: balColor),
                   ),
-                  Text(
-                    balance == 0 ? 'Рассчитан' : money(balance.abs()),
-                    style: amountStyle(32, color: balColor),
-                  ),
+                  if (balance != 0) Text(money(balance.abs()), style: amountStyle(32, color: balColor)),
                   const SizedBox(height: 10),
                   const Divider(),
                   const SizedBox(height: 6),
-                  KeyValue('Заказов на сумму', money(totalOrders)),
-                  KeyValue('Оплачено', money(totalPaid), color: col.income),
-                  if (set.show(OrderField.weight) && weight > 0) KeyValue('Общий вес', kg(weight)),
-                  if (set.show(OrderField.pricing) && c.rateKgCents != null)
-                    KeyValue('Своя цена за кг', money(c.rateKgCents!)),
+                  KeyValue(t.ordersTotal, money(totalOrders)),
+                  if (totalDeposits > 0) KeyValue(t.deposits, money(totalDeposits), color: col.income),
+                  KeyValue(t.paymentsLabel, money(totalPaid), color: col.income),
                   if (c.note.isNotEmpty) ...[
                     const SizedBox(height: 8),
                     Text(c.note, style: context.tt.bodyMedium?.copyWith(color: col.muted)),
@@ -256,7 +258,7 @@ class _ClientDetailScreenState extends State<ClientDetailScreen> {
                     child: FilledButton.icon(
                       style: FilledButton.styleFrom(backgroundColor: col.income),
                       icon: const Icon(Icons.south_west_rounded),
-                      label: const Text('Оплата'),
+                      label: Text(t.payment),
                       onPressed: () => Navigator.push(
                         context,
                         MaterialPageRoute(builder: (_) => PaymentFormPage(clientId: c.id)),
@@ -266,8 +268,8 @@ class _ClientDetailScreenState extends State<ClientDetailScreen> {
                   const SizedBox(width: 10),
                   Expanded(
                     child: OutlinedButton.icon(
-                      icon: const Icon(Icons.local_shipping_outlined),
-                      label: const Text('Заказ'),
+                      icon: const Icon(Icons.handyman_outlined),
+                      label: Text(t.order),
                       onPressed: () => Navigator.push(
                         context,
                         MaterialPageRoute(builder: (_) => OrderFormPage(clientId: c.id)),
@@ -280,8 +282,8 @@ class _ClientDetailScreenState extends State<ClientDetailScreen> {
                 padding: const EdgeInsets.fromLTRB(16, 20, 16, 12),
                 child: SegmentedButton<int>(
                   segments: [
-                    ButtonSegment(value: 0, label: Text('Заказы · ${orders.length}')),
-                    ButtonSegment(value: 1, label: Text('Оплаты · ${payments.length}')),
+                    ButtonSegment(value: 0, label: Text(t.ordersTab(orders.length))),
+                    ButtonSegment(value: 1, label: Text(t.paymentsTab(payments.length))),
                   ],
                   selected: {_tab},
                   showSelectedIcon: false,
@@ -290,11 +292,11 @@ class _ClientDetailScreenState extends State<ClientDetailScreen> {
               ),
               if (_tab == 0)
                 orders.isEmpty
-                    ? const EmptyState(icon: Icons.local_shipping_outlined, title: 'Заказов нет')
+                    ? EmptyState(icon: Icons.handyman_outlined, title: t.noOrders)
                     : GroupCard(children: [for (final o in orders) OrderTile(o, showClient: false)])
               else
                 payments.isEmpty
-                    ? const EmptyState(icon: Icons.payments_outlined, title: 'Оплат нет')
+                    ? EmptyState(icon: Icons.payments_outlined, title: t.noPayments)
                     : GroupCard(children: [for (final p in payments) PaymentTile(p, showClient: false, showDate: true)]),
             ],
           ),
