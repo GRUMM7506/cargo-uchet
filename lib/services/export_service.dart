@@ -37,6 +37,13 @@ class ExportService {
 
   static double _usd(int cents) => cents / 100;
 
+  static String _tariff(Order o) {
+    if (o.pricing == Pricing.fixed || o.rateCents == null) return '';
+    final unit = o.pricing == Pricing.perKg ? 'кг' : 'шт';
+    final extra = o.extraCents == 0 ? '' : (o.extraCents > 0 ? ' + ${money(o.extraCents)}' : ' − ${money(-o.extraCents)}');
+    return '${money(o.rateCents!)}/$unit$extra';
+  }
+
   static void _row(xl.Sheet s, List<Object?> cells, {bool bold = false}) {
     s.appendRow(cells.map(_cell).toList());
     if (bold) {
@@ -75,6 +82,7 @@ class ExportService {
       _row(sum, ['Заказов принято', s.ordersCount]);
       _row(sum, ['Сумма заказов, \$', _usd(s.ordersCents)]);
       _row(sum, ['Вес, кг', s.weightKg]);
+      if (s.avgPerKgCents != null) _row(sum, ['Средняя цена за кг, \$', _usd(s.avgPerKgCents!)]);
       _row(sum, ['']);
       _row(sum, ['Долг клиентов на сегодня, \$', _usd(_s.totalDebt)]);
       _row(sum, ['Авансы клиентов на сегодня, \$', _usd(_s.totalAdvance)]);
@@ -130,8 +138,9 @@ class ExportService {
 
     // --- Заказы ---
     final ord = book['Заказы'];
-    _widths(ord, [12, 22, 26, 10, 10, 12, 12, 26]);
-    _row(ord, ['Принят', 'Клиент', 'Груз', 'Вес кг', 'Кол-во', 'Сумма \$', 'Выполнен', 'Заметка'], bold: true);
+    _widths(ord, [12, 22, 26, 16, 10, 10, 16, 12, 12, 26]);
+    _row(ord, ['Принят', 'Клиент', 'Груз', 'Трек', 'Вес кг', 'Кол-во', 'Тариф', 'Сумма \$', 'Выполнен', 'Заметка'],
+        bold: true);
     var ordTotal = 0;
     var ordWeight = 0.0;
     for (final x in _s.orders.reversed.where((x) => inRange(x.acceptedAt))) {
@@ -141,14 +150,16 @@ class ExportService {
         dateStr(x.acceptedAt),
         _s.clientName(x.clientId),
         x.description,
+        x.code,
         x.weightKg,
         x.quantity,
+        _tariff(x),
         _usd(x.amountCents),
         x.doneAt == null ? '' : dateStr(x.doneAt!),
         x.note,
       ]);
     }
-    _row(ord, ['ИТОГО', '', '', ordWeight, '', _usd(ordTotal)], bold: true);
+    _row(ord, ['ИТОГО', '', '', '', ordWeight, '', '', _usd(ordTotal)], bold: true);
 
     // --- Клиенты (балансы на сегодня) ---
     final cl = book['Клиенты'];
@@ -239,6 +250,7 @@ class ExportService {
             pw.SizedBox(height: 6),
             _kv('Заказов принято', '${s.ordersCount} на ${money(s.ordersCents)}'),
             if (s.weightKg > 0) _kv('Вес', kg(s.weightKg)),
+            if (s.avgPerKgCents != null) _kv('Средняя цена за кг', money(s.avgPerKgCents!)),
             _kv('Долг клиентов на сегодня', money(_s.totalDebt)),
           ]),
         ),
@@ -264,19 +276,20 @@ class ExportService {
         ),
         _h('Заказы (${ords.length})'),
         _table(
-          ['Принят', 'Клиент', 'Груз', 'Вес', 'Сумма', 'Выполнен'],
+          ['Принят', 'Клиент', 'Груз', 'Вес', 'Тариф', 'Сумма', 'Выполнен'],
           [
             for (final x in ords)
               [
                 dateStr(x.acceptedAt),
                 _s.clientName(x.clientId),
-                x.description,
+                [x.description, if (x.code.isNotEmpty) '№${x.code}'].where((e) => e.isNotEmpty).join(' '),
                 x.weightKg == null ? '' : kg(x.weightKg!),
+                _tariff(x),
                 money(x.amountCents),
                 x.doneAt == null ? 'в работе' : dateStr(x.doneAt!),
               ]
           ],
-          right: {3, 4},
+          right: {3, 4, 5},
         ),
         _h('Расчёты с клиентами на сегодня'),
         _table(

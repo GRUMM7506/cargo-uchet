@@ -5,6 +5,7 @@ import 'package:sqflite/sqflite.dart';
 
 import 'db.dart';
 import 'models.dart';
+import 'settings.dart';
 
 /// Единое хранилище приложения. Данных у одного пользователя немного,
 /// поэтому всё держим в памяти и перечитываем после каждого изменения.
@@ -26,6 +27,7 @@ class AppStore extends ChangeNotifier {
 
   Future<void> init() async {
     _db = await AppDatabase.open();
+    await AppSettings.I.load(db);
     await reload();
   }
 
@@ -95,7 +97,7 @@ class AppStore extends ChangeNotifier {
   }
 
   MonthSummary summary(YearMonth m) {
-    var income = 0, expense = 0, ordSum = 0, ordCount = 0;
+    var income = 0, expense = 0, ordSum = 0, ordCount = 0, weighted = 0;
     var weight = 0.0;
     final byCat = <String, int>{};
     for (final p in payments) {
@@ -111,7 +113,10 @@ class AppStore extends ChangeNotifier {
       if (m.contains(o.acceptedAt)) {
         ordSum += o.amountCents;
         ordCount++;
-        weight += o.weightKg ?? 0;
+        if (o.weightKg != null && o.weightKg! > 0) {
+          weight += o.weightKg!;
+          weighted += o.amountCents;
+        }
       }
     }
     final sortedCat = Map.fromEntries(
@@ -124,6 +129,7 @@ class AppStore extends ChangeNotifier {
       ordersCents: ordSum,
       ordersCount: ordCount,
       weightKg: weight,
+      weightedOrdersCents: weighted,
       expensesByCategory: sortedCat,
     );
   }
@@ -173,17 +179,8 @@ class AppStore extends ChangeNotifier {
   Future<void> deletePayment(int id) => _delete('payments', id);
   Future<void> deleteExpense(int id) => _delete('expenses', id);
 
-  Future<void> setOrderDone(Order o, bool done) => saveOrder(Order(
-        id: o.id,
-        clientId: o.clientId,
-        description: o.description,
-        weightKg: o.weightKg,
-        quantity: o.quantity,
-        amountCents: o.amountCents,
-        acceptedAt: o.acceptedAt,
-        doneAt: done ? today() : null,
-        note: o.note,
-      ));
+  Future<void> setOrderDone(Order o, bool done) =>
+      saveOrder(done ? o.copyWith(doneAt: today()) : o.copyWith(clearDone: true));
 
   // ---------- Резервная копия ----------
 
@@ -200,6 +197,7 @@ class AppStore extends ChangeNotifier {
     }
     await File(sourcePath).copy(target);
     _db = await AppDatabase.open();
+    await AppSettings.I.load(db);
     await reload();
   }
 }
