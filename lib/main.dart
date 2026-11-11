@@ -5,6 +5,7 @@ import 'l10n.dart';
 import 'screens/clients_screen.dart';
 import 'screens/expenses_screen.dart';
 import 'screens/home_screen.dart';
+import 'screens/intro_screen.dart';
 import 'screens/orders_screen.dart';
 import 'screens/reports_screen.dart';
 import 'services/rates.dart';
@@ -77,7 +78,7 @@ class _UchetAppState extends State<UchetApp> {
       theme: buildTheme(Brightness.light, s.accent),
       darkTheme: buildTheme(Brightness.dark, s.accent),
       builder: (context, child) => UiScale(scale: s.uiScale, child: child!),
-      home: const HomeShell(),
+      home: s.introDone ? const HomeShell() : const IntroScreen(),
     );
   }
 }

@@ -6,10 +6,12 @@ import '../l10n.dart';
 import '../models.dart';
 import '../services/export_service.dart';
 import '../services/rates.dart';
+import '../store.dart';
 import '../settings.dart';
 import '../theme.dart';
 import '../widgets/common.dart';
 import '../widgets/tiles.dart';
+import 'help_screen.dart';
 import 'rates_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
@@ -64,6 +66,30 @@ class _SettingsScreenState extends State<SettingsScreen> {
         body: ListView(
           padding: const EdgeInsets.fromLTRB(16, 0, 16, 40),
           children: [
+            // ---------------- Помощь ----------------
+            SectionCard(
+              padding: const EdgeInsets.fromLTRB(8, 8, 8, 8),
+              children: [
+                _ActionTile(
+                  icon: Icons.help_outline_rounded,
+                  title: t.help,
+                  subtitle: t.helpHint,
+                  onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const HelpScreen())),
+                ),
+                if (s.checklistHidden)
+                  _ActionTile(
+                    icon: Icons.school_outlined,
+                    title: t.gsTitle,
+                    subtitle: '${t.gsStep1} → ${t.gsStep2} → ${t.gsStep3}',
+                    onTap: () {
+                      s.setChecklistHidden(false);
+                      Navigator.pop(context);
+                    },
+                  ),
+              ],
+            ),
+            const SizedBox(height: 12),
+
             // ---------------- Язык ----------------
             SectionCard(title: t.language, children: [
               SegmentedButton<String>(
@@ -225,6 +251,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   subtitle: t.excelAllHint,
                   onTap: () => _run(context, () => ExportService.excel()),
                 ),
+                _ActionTile(
+                  icon: Icons.delete_sweep_outlined,
+                  title: t.clearAll,
+                  subtitle: t.clearAllHint,
+                  danger: true,
+                  onTap: () => _clearAll(context),
+                ),
               ],
             ),
             const SizedBox(height: 24),
@@ -235,7 +268,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   child: Image.asset('assets/images/logo.png', width: 56, height: 56),
                 ),
                 const SizedBox(height: 8),
-                Text('${t.appTitle} · ${t.versionLabel} 2.2',
+                Text('${t.appTitle} · ${t.versionLabel} 2.3',
                     style: context.tt.bodySmall?.copyWith(color: context.colors.muted)),
               ]),
             ),
@@ -251,6 +284,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
     } catch (e) {
       if (context.mounted) toast(context, t.error(e));
     }
+  }
+
+  Future<void> _clearAll(BuildContext context) async {
+    if (!await confirm(context, t.clearAllQ, ok: t.yesDelete)) return;
+    if (!context.mounted || !await confirm(context, t.clearAllQ2, ok: t.yesDelete)) return;
+    await AppStore.I.clearAll();
+    if (context.mounted) toast(context, t.cleared);
   }
 
   Future<void> _restore(BuildContext context) async {
@@ -301,15 +341,23 @@ class _ActionTile extends StatelessWidget {
   final String title;
   final String subtitle;
   final VoidCallback onTap;
+  final bool danger;
 
-  const _ActionTile({required this.icon, required this.title, required this.subtitle, required this.onTap});
+  const _ActionTile({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+    this.danger = false,
+  });
 
   @override
   Widget build(BuildContext context) {
+    final color = danger ? context.colors.expense : context.cs.primary;
+    final bg = danger ? context.colors.expenseBg : context.cs.primaryContainer.withValues(alpha: 0.6);
     return ListTile(
-      leading: IconBadge(icon,
-          size: 40, color: context.cs.primary, background: context.cs.primaryContainer.withValues(alpha: 0.6)),
-      title: Text(title),
+      leading: IconBadge(icon, size: 40, color: color, background: bg),
+      title: Text(title, style: danger ? TextStyle(color: context.colors.expense) : null),
       subtitle: Text(subtitle),
       trailing: const Icon(Icons.chevron_right_rounded),
       onTap: onTap,

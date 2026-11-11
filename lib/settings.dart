@@ -28,6 +28,11 @@ class AppSettings extends ChangeNotifier {
   int accentIndex = 0;
   Set<OrderField> hidden = {};
 
+  /// Обучение: вступление показано, карточка «С чего начать» скрыта, копия сделана.
+  bool introDone = false;
+  bool checklistHidden = false;
+  bool backupDone = false;
+
   /// Размер интерфейса: 'auto' | 'small' | 'normal' | 'large'.
   String uiScale = 'auto';
 
@@ -73,6 +78,9 @@ class AppSettings extends ChangeNotifier {
     accentIndex = int.tryParse(m['accent'] ?? '') ?? 0;
     final keys = (m['hidden_v3'] ?? '').split(',').where((s) => s.isNotEmpty).toSet();
     hidden = OrderField.values.where((f) => keys.contains(f.name)).toSet();
+    introDone = m['intro_done'] == '1';
+    checklistHidden = m['checklist_hidden'] == '1';
+    backupDone = m['backup_done'] == '1';
     uiScale = const {'auto', 'small', 'normal', 'large'}.contains(m['ui_scale']) ? m['ui_scale']! : 'auto';
     currency = isKnownCurrency(m['currency'] ?? '') ? m['currency']! : 'USD';
     final en = (m['currencies'] ?? '').split(',').where(isKnownCurrency).toList();
@@ -104,6 +112,25 @@ class AppSettings extends ChangeNotifier {
     accentIndex = i;
     notifyListeners();
     await _put('accent', '$i');
+  }
+
+  Future<void> setIntroDone(bool v) async {
+    introDone = v;
+    notifyListeners();
+    await _put('intro_done', v ? '1' : '0');
+  }
+
+  Future<void> setChecklistHidden(bool v) async {
+    checklistHidden = v;
+    notifyListeners();
+    await _put('checklist_hidden', v ? '1' : '0');
+  }
+
+  Future<void> markBackupDone() async {
+    if (backupDone) return;
+    backupDone = true;
+    notifyListeners();
+    await _put('backup_done', '1');
   }
 
   Future<void> setUiScale(String v) async {

@@ -8,9 +8,10 @@ import '../settings.dart';
 import '../store.dart';
 import '../theme.dart';
 import '../widgets/common.dart';
+import '../widgets/getting_started.dart';
 import '../widgets/tiles.dart';
 import 'clients_screen.dart';
-import 'month_report_screen.dart';
+import 'help_screen.dart';
 import 'settings_screen.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -48,11 +49,14 @@ class _HomeScreenState extends State<HomeScreen> {
           appBar: AppBar(
             title: Text(t.appTitle),
             actions: [
-              CurrencyButton(value: AppSettings.I.currency, onChanged: AppSettings.I.setCurrency),
+              Tooltip(
+                message: t.mainCurrency,
+                child: CurrencyButton(value: AppSettings.I.currency, onChanged: AppSettings.I.setCurrency),
+              ),
               IconButton(
-                tooltip: t.monthReport,
-                icon: const Icon(Icons.insert_chart_outlined_rounded),
-                onPressed: () => _open(MonthReportScreen(month: _month)),
+                tooltip: t.help,
+                icon: const Icon(Icons.help_outline_rounded),
+                onPressed: () => _open(const HelpScreen()),
               ),
               IconButton(
                 tooltip: t.settings,
@@ -65,6 +69,11 @@ class _HomeScreenState extends State<HomeScreen> {
           body: ListView(
             padding: const EdgeInsets.only(bottom: 32),
             children: [
+              if (!AppSettings.I.checklistHidden)
+                const Padding(
+                  padding: EdgeInsets.fromLTRB(16, 0, 16, 14),
+                  child: GettingStartedCard(),
+                ),
               Center(child: MonthSwitcher(month: _month, onChanged: (m) => setState(() => _month = m))),
               const SizedBox(height: 14),
               Padding(

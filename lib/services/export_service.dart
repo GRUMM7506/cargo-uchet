@@ -375,6 +375,7 @@ class ExportService {
     final dst = await _tempFile('uchet_backup_${dateToDb(today())}.zip');
     await dst.writeAsBytes(zip, flush: true);
     await _share(dst, t.backupSubject);
+    await AppSettings.I.markBackupDone();
   }
 
   /// Выбор файла копии. null — пользователь отменил.

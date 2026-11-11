@@ -297,6 +297,18 @@ class AppStore extends ChangeNotifier {
   Future<void> deletePayment(int id) => _delete('payments', id);
   Future<void> deleteExpense(int id) => _delete('expenses', id);
 
+  /// Удалить все записи (клиенты, заказы, оплаты, расходы и фото). Настройки и курсы остаются.
+  Future<void> clearAll() async {
+    await db.transaction((tx) async {
+      await tx.delete('payments');
+      await tx.delete('orders');
+      await tx.delete('expenses');
+      await tx.delete('clients');
+    });
+    await reload();
+    await Photos.cleanup(const {});
+  }
+
   Future<void> setOrderDone(Order o, bool done) =>
       saveOrder(done ? o.copyWith(doneAt: today()) : o.copyWith(clearDone: true));
 

@@ -54,7 +54,10 @@ void main() {
     expect(t.tabClients, 'Mijozlar');
     expect(t.dayMonth(12, 11), '12-noyabr');
     expect(const YearMonth(2026, 11).label, 'Noyabr 2026');
+    final uzHelp = t.helpSections.length;
+    expect(t.intro1Title, isNotEmpty);
     AppSettings.I.lang = 'ru';
+    expect(t.helpSections.length, uzHelp);
   });
 
   test('валюты: формат и пересчёт', () {

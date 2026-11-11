@@ -291,6 +291,45 @@ abstract class S {
   String get deleteClient;
   String get deleted;
   String get open;
+
+  // --- обучение ---
+  String get introSkip;
+  String get introNext;
+  String get introStart;
+  String get intro1Title;
+  String get intro1Text;
+  String get intro2Title;
+  String get intro2Text;
+  String get intro3Title;
+  String get intro3Text;
+  String get intro4Title;
+  String get intro4Text;
+  String get intro5Title;
+  String get intro5Text;
+  String get gsTitle;
+  String get gsDoneTitle;
+  String get gsDoneText;
+  String get gsHide;
+  String get gsStep1;
+  String get gsStep1Hint;
+  String get gsStep2;
+  String get gsStep2Hint;
+  String get gsStep3;
+  String get gsStep3Hint;
+  String get gsStep4;
+  String get gsStep4Hint;
+  String get gsStep5;
+  String get gsStep5Hint;
+  String get help;
+  String get helpHint;
+  String get replayIntro;
+  String get clearAll;
+  String get clearAllHint;
+  String get clearAllQ;
+  String get clearAllQ2;
+  String get cleared;
+  String get yesDelete;
+  List<(String, String)> get helpSections;
 }
 
 // ============================================================================
@@ -404,7 +443,7 @@ class _Ru extends S {
   @override
   String get emptyTitle => 'Пока пусто';
   @override
-  String get emptyMoneyFlow => 'Залоги, оплаты и расходы этого месяца появятся здесь';
+  String get emptyMoneyFlow => 'Здесь появятся деньги, полученные и потраченные в этом месяце';
   @override
   String get monthReport => 'Отчёт за месяц';
   @override
@@ -499,7 +538,7 @@ class _Ru extends S {
   @override
   String get markDone => 'Выполнен';
   @override
-  String get markInWork => 'В работу';
+  String get markInWork => 'Вернуть в работу';
   @override
   String get orderPayments => 'Оплаты по заказу';
   @override
@@ -546,7 +585,7 @@ class _Ru extends S {
   @override
   String get newOrder => 'Новый заказ';
   @override
-  String get workDescription => 'Что за работа';
+  String get workDescription => 'Что за работа (например: шкаф, дверь)';
   @override
   String get workPrice => 'Цена работы';
   @override
@@ -554,7 +593,7 @@ class _Ru extends S {
   @override
   String get negativeAmount => 'Сумма не может быть отрицательной';
   @override
-  String get depositHint => 'Сколько дал сразу';
+  String get depositHint => 'Сколько денег дал сразу при заказе';
   @override
   String get depositDate => 'Дата залога';
   @override
@@ -594,9 +633,9 @@ class _Ru extends S {
   @override
   String get date => 'Дата';
   @override
-  String get forWhichOrder => 'За какой заказ (необязательно)';
+  String get forWhichOrder => 'За какой заказ (не обязательно)';
   @override
-  String get generalAccount => 'Общий счёт клиента';
+  String get generalAccount => 'В счёт общего долга';
   @override
   String get deletePaymentQ => 'Удалить эту оплату?';
   @override
@@ -604,9 +643,9 @@ class _Ru extends S {
   @override
   String get amount => 'Сумма';
   @override
-  String get spentOn => 'На что';
+  String get spentOn => 'На что потратили';
   @override
-  String get ownCategory => 'Или своя категория';
+  String get ownCategory => 'Или напишите свою';
   @override
   String get enterCategory => 'Укажите, на что потратили';
   @override
@@ -838,6 +877,92 @@ class _Ru extends S {
   String get deleted => 'Удалено';
   @override
   String get open => 'Открыть';
+
+  // --- обучение ---
+  @override
+  String get introSkip => 'Пропустить';
+  @override
+  String get introNext => 'Далее';
+  @override
+  String get introStart => 'Начать';
+  @override
+  String get intro1Title => 'Тетрадь долгов клиентов';
+  @override
+  String get intro1Text => 'Записывайте заказы, залоги и оплаты — приложение само посчитает, кто сколько должен.';
+  @override
+  String get intro2Title => 'Клиент и заказ';
+  @override
+  String get intro2Text => 'Добавьте клиента, затем заказ: что за работа, цена и сколько дал залога. Работу можно сфотографировать.';
+  @override
+  String get intro3Title => 'Оплата закрывает долг';
+  @override
+  String get intro3Text => 'Клиент принёс деньги — нажмите «Оплата». Долг = цена − залог − оплаты. Должники всегда видны на главной.';
+  @override
+  String get intro4Title => 'Расходы и прибыль';
+  @override
+  String get intro4Text => 'Записывайте расходы: Китай, груз, машина… Каждый месяц приложение само считает приход, расход и прибыль.';
+  @override
+  String get intro5Title => 'Валюты и резервная копия';
+  @override
+  String get intro5Text => 'Суммы можно вводить в долларах, сумах, сомони и юанях — курс обновляется сам. Раз в неделю отправляйте резервную копию себе в Telegram.';
+  @override
+  String get gsTitle => 'С чего начать';
+  @override
+  String get gsDoneTitle => 'Всё готово! 🎉';
+  @override
+  String get gsDoneText => 'Вы попробовали всё основное. Эту карточку можно скрыть.';
+  @override
+  String get gsHide => 'Скрыть';
+  @override
+  String get gsStep1 => 'Добавьте клиента';
+  @override
+  String get gsStep1Hint => 'Имя и телефон, можно фото';
+  @override
+  String get gsStep2 => 'Запишите заказ';
+  @override
+  String get gsStep2Hint => 'Что за работа, цена и залог';
+  @override
+  String get gsStep3 => 'Примите оплату';
+  @override
+  String get gsStep3Hint => 'Когда клиент принесёт деньги';
+  @override
+  String get gsStep4 => 'Запишите расход';
+  @override
+  String get gsStep4Hint => 'Китай, груз, машина…';
+  @override
+  String get gsStep5 => 'Сделайте резервную копию';
+  @override
+  String get gsStep5Hint => 'Отправьте файл себе в Telegram';
+  @override
+  String get help => 'Как пользоваться';
+  @override
+  String get helpHint => 'Короткая инструкция по всем разделам';
+  @override
+  String get replayIntro => 'Показать вступление ещё раз';
+  @override
+  String get clearAll => 'Удалить все данные';
+  @override
+  String get clearAllHint => 'Например, после проверки на тестовых записях';
+  @override
+  String get clearAllQ => 'Удалить ВСЕХ клиентов, заказы, оплаты и расходы? Настройки и курсы останутся.';
+  @override
+  String get clearAllQ2 => 'Точно? Это нельзя отменить. Если данные нужны — сначала сделайте резервную копию.';
+  @override
+  String get cleared => 'Все данные удалены';
+  @override
+  String get yesDelete => 'Да, удалить';
+  @override
+  List<(String, String)> get helpSections => const [
+        ('Клиенты', 'Список всех клиентов. Справа видно, сколько клиент должен (оранжевым) или переплатил (зелёным). Нажмите на клиента — откроется его карточка с заказами и оплатами.'),
+        ('Заказ', 'Заказ — это работа для клиента. Укажите цену и залог (сколько денег дал сразу). Срок сдачи — не обязательно: просроченные заказы подсвечиваются красным. Когда работа готова, отметьте «Выполнен».'),
+        ('Залог и оплата', 'Залог вводится в самом заказе. Остальные деньги — кнопкой «Оплата». Оплату можно привязать к конкретному заказу или внести в счёт общего долга клиента.'),
+        ('Как считается долг', 'Долг = цены заказов − залоги − оплаты. Если клиент заплатил больше, это переплата: она уменьшит его следующий долг.'),
+        ('Расходы', 'Все траты: Китай, груз, машина, материалы… Можно написать свою категорию.'),
+        ('Главная и отчёты', 'На главной — прибыль месяца: приход (залоги + оплаты) минус расходы. Стрелками ‹ › можно листать месяцы. В «Отчётах» — график и выгрузка в Excel и PDF.'),
+        ('Валюты', 'У каждой суммы есть кнопка валюты (USD ▾). Итоги показываются в основной валюте — её меняет кнопка вверху главного экрана. Курсы обновляются из интернета раз в день.'),
+        ('Изменить или удалить', 'Нажмите на запись, чтобы изменить её. Удерживайте палец — появится меню «Изменить / Удалить». Смахните запись влево — удалить.'),
+        ('Резервная копия', 'Настройки → Резервная копия: файл с данными и фото отправьте себе в Telegram. На новом телефоне: Настройки → Восстановить из копии.'),
+      ];
 }
 
 // ============================================================================
@@ -916,7 +1041,7 @@ class _Uz extends S {
   @override
   String get settledPill => 'qarzi yoʻq';
   @override
-  String get paidPill => 'toʻlangan';
+  String get paidPill => 'toʻliq toʻlangan';
   @override
   String get inWork => 'jarayonda';
   @override
@@ -925,7 +1050,7 @@ class _Uz extends S {
   String get overdue => 'muddati oʻtgan';
 
   @override
-  String get clientsOwe => 'Mijozlar qarzi';
+  String get clientsOwe => 'Mijozlar menga qarz';
   @override
   String get nobodyOwes => 'hech kim qarzdor emas';
   @override
@@ -941,7 +1066,7 @@ class _Uz extends S {
   @override
   String get emptyTitle => 'Hozircha boʻsh';
   @override
-  String get emptyMoneyFlow => 'Shu oydagi zaklad, toʻlov va xarajatlar shu yerda chiqadi';
+  String get emptyMoneyFlow => 'Bu oyda olingan va sarflangan pullar shu yerda chiqadi';
   @override
   String get monthReport => 'Oylik hisobot';
   @override
@@ -966,7 +1091,7 @@ class _Uz extends S {
   @override
   String get clientsSearchHint => 'Ism yoki telefon boʻyicha qidirish';
   @override
-  String get owe => 'Qarzlar';
+  String get owe => 'Menga qarz';
   @override
   String get overpayments => 'Ortiqcha toʻlovlar';
   @override
@@ -1036,7 +1161,7 @@ class _Uz extends S {
   @override
   String get markDone => 'Bajarildi';
   @override
-  String get markInWork => 'Jarayonga';
+  String get markInWork => 'Jarayonga qaytarish';
   @override
   String get orderPayments => 'Buyurtma boʻyicha toʻlovlar';
   @override
@@ -1083,7 +1208,7 @@ class _Uz extends S {
   @override
   String get newOrder => 'Yangi buyurtma';
   @override
-  String get workDescription => 'Qanday ish';
+  String get workDescription => 'Qanday ish (masalan: shkaf, eshik)';
   @override
   String get workPrice => 'Ish narxi';
   @override
@@ -1091,7 +1216,7 @@ class _Uz extends S {
   @override
   String get negativeAmount => 'Summa manfiy boʻlishi mumkin emas';
   @override
-  String get depositHint => 'Darhol qancha berdi';
+  String get depositHint => 'Buyurtma berganda darhol qancha pul berdi';
   @override
   String get depositDate => 'Zaklad sanasi';
   @override
@@ -1127,13 +1252,13 @@ class _Uz extends S {
   @override
   String get orderRemainder => 'Qoldiq';
   @override
-  String get howMuchGave => 'Qancha berdi';
+  String get howMuchGave => 'Qancha pul berdi';
   @override
   String get date => 'Sana';
   @override
-  String get forWhichOrder => 'Qaysi buyurtma uchun (ixtiyoriy)';
+  String get forWhichOrder => 'Qaysi buyurtma uchun (shart emas)';
   @override
-  String get generalAccount => 'Mijozning umumiy hisobi';
+  String get generalAccount => 'Umumiy qarz hisobiga';
   @override
   String get deletePaymentQ => 'Bu toʻlovni oʻchirasizmi?';
   @override
@@ -1141,9 +1266,9 @@ class _Uz extends S {
   @override
   String get amount => 'Summa';
   @override
-  String get spentOn => 'Nimaga';
+  String get spentOn => 'Nimaga sarflandi';
   @override
-  String get ownCategory => 'Yoki oʻz toifangiz';
+  String get ownCategory => 'Yoki oʻzingiz yozing';
   @override
   String get enterCategory => 'Nimaga sarflanganini yozing';
   @override
@@ -1377,4 +1502,90 @@ class _Uz extends S {
   String get deleted => 'Oʻchirildi';
   @override
   String get open => 'Ochish';
+
+  // --- обучение ---
+  @override
+  String get introSkip => 'Oʻtkazib yuborish';
+  @override
+  String get introNext => 'Keyingi';
+  @override
+  String get introStart => 'Boshlash';
+  @override
+  String get intro1Title => 'Mijozlar qarz daftari';
+  @override
+  String get intro1Text => 'Buyurtma, zaklad va toʻlovlarni yozib boring — kim qancha qarzligini ilova oʻzi hisoblaydi.';
+  @override
+  String get intro2Title => 'Mijoz va buyurtma';
+  @override
+  String get intro2Text => 'Avval mijozni qoʻshing, keyin buyurtmani: qanday ish, narxi va qancha zaklad berdi. Ishni suratga olib qoʻyish ham mumkin.';
+  @override
+  String get intro3Title => 'Toʻlov qarzni yopadi';
+  @override
+  String get intro3Text => 'Mijoz pul olib keldi — «Toʻlov»ni bosing. Qarz = narx − zaklad − toʻlovlar. Qarzdorlar doim asosiy ekranda koʻrinib turadi.';
+  @override
+  String get intro4Title => 'Xarajat va foyda';
+  @override
+  String get intro4Text => 'Xarajatlarni yozing: Xitoy, yuk, mashina… Har oy kirim, chiqim va foydani ilova oʻzi hisoblaydi.';
+  @override
+  String get intro5Title => 'Valyuta va zaxira nusxa';
+  @override
+  String get intro5Text => 'Summalarni dollar, soʻm, somoni va yuanda kiritish mumkin — kurs oʻzi yangilanadi. Haftada bir marta zaxira nusxani oʻzingizga Telegramga yuboring.';
+  @override
+  String get gsTitle => 'Nimadan boshlash kerak';
+  @override
+  String get gsDoneTitle => 'Hammasi tayyor! 🎉';
+  @override
+  String get gsDoneText => 'Asosiy narsalarning hammasini sinab koʻrdingiz. Bu kartani yashirish mumkin.';
+  @override
+  String get gsHide => 'Yashirish';
+  @override
+  String get gsStep1 => 'Mijoz qoʻshing';
+  @override
+  String get gsStep1Hint => 'Ismi va telefoni, rasm ham mumkin';
+  @override
+  String get gsStep2 => 'Buyurtma yozing';
+  @override
+  String get gsStep2Hint => 'Qanday ish, narxi va zaklad';
+  @override
+  String get gsStep3 => 'Toʻlov qabul qiling';
+  @override
+  String get gsStep3Hint => 'Mijoz pul olib kelganda';
+  @override
+  String get gsStep4 => 'Xarajat yozing';
+  @override
+  String get gsStep4Hint => 'Xitoy, yuk, mashina…';
+  @override
+  String get gsStep5 => 'Zaxira nusxa oling';
+  @override
+  String get gsStep5Hint => 'Faylni oʻzingizga Telegramga yuboring';
+  @override
+  String get help => 'Qanday foydalanish';
+  @override
+  String get helpHint => 'Barcha boʻlimlar boʻyicha qisqa yoʻriqnoma';
+  @override
+  String get replayIntro => 'Kirish qismini qayta koʻrish';
+  @override
+  String get clearAll => 'Barcha maʼlumotlarni oʻchirish';
+  @override
+  String get clearAllHint => 'Masalan, sinov yozuvlaridan keyin';
+  @override
+  String get clearAllQ => 'BARCHA mijozlar, buyurtmalar, toʻlovlar va xarajatlar oʻchirilsinmi? Sozlamalar va kurslar qoladi.';
+  @override
+  String get clearAllQ2 => 'Aniqmi? Buni qaytarib boʻlmaydi. Maʼlumotlar kerak boʻlsa — avval zaxira nusxa oling.';
+  @override
+  String get cleared => 'Barcha maʼlumotlar oʻchirildi';
+  @override
+  String get yesDelete => 'Ha, oʻchirish';
+  @override
+  List<(String, String)> get helpSections => const [
+        ('Mijozlar', 'Barcha mijozlar roʻyxati. Oʻng tomonda mijoz qancha qarzligi (toʻq sariq) yoki ortiqcha toʻlagani (yashil) koʻrinadi. Mijozni bossangiz, uning buyurtma va toʻlovlari ochiladi.'),
+        ('Buyurtma', 'Buyurtma — mijoz uchun qilinadigan ish. Narxini va zakladni (darhol bergan pulini) kiriting. Topshirish muddati shart emas: muddati oʻtgan buyurtmalar qizil boʻlib turadi. Ish tayyor boʻlsa, «Bajarildi» deb belgilang.'),
+        ('Zaklad va toʻlov', 'Zaklad buyurtmaning ichida kiritiladi. Qolgan pullar «Toʻlov» tugmasi orqali yoziladi. Toʻlovni aniq bir buyurtmaga bogʻlash yoki mijozning umumiy qarziga yozish mumkin.'),
+        ('Qarz qanday hisoblanadi', 'Qarz = buyurtmalar narxi − zakladlar − toʻlovlar. Mijoz koʻproq toʻlagan boʻlsa, bu ortiqcha toʻlov: keyingi qarzidan ayiriladi.'),
+        ('Xarajatlar', 'Sarflangan hamma pul: Xitoy, yuk, mashina, materiallar… Oʻzingiz ham nom yozishingiz mumkin.'),
+        ('Asosiy ekran va hisobotlar', 'Asosiy ekranda — oy foydasi: kirim (zaklad + toʻlovlar) minus chiqim. ‹ › strelkalari bilan oylarni almashtirasiz. «Hisobotlar»da — grafik hamda Excel va PDF.'),
+        ('Valyutalar', 'Har bir summa yonida valyuta tugmasi bor (USD ▾). Yakunlar asosiy valyutada koʻrsatiladi — uni asosiy ekranning yuqorisidagi tugma almashtiradi. Kurslar kunda bir marta internetdan yangilanadi.'),
+        ('Tahrirlash va oʻchirish', 'Yozuvni oʻzgartirish uchun ustiga bosing. Barmogʻingizni bosib tursangiz, «Tahrirlash / Oʻchirish» menyusi chiqadi. Yozuvni chapga sursangiz — oʻchiriladi.'),
+        ('Zaxira nusxa', 'Sozlamalar → Zaxira nusxa: maʼlumot va rasmlar faylini oʻzingizga Telegramga yuboring. Yangi telefonda: Sozlamalar → Nusxadan tiklash.'),
+      ];
 }
