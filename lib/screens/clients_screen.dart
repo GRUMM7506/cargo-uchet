@@ -9,6 +9,7 @@ import '../services/rates.dart';
 import '../settings.dart';
 import '../store.dart';
 import '../theme.dart';
+import '../widgets/actions.dart';
 import '../widgets/common.dart';
 import '../widgets/tiles.dart';
 
@@ -100,7 +101,7 @@ class _ClientsScreenState extends State<ClientsScreen> {
                   title: store.clients.isEmpty ? t.noClients : t.nobodyFound,
                   text: store.clients.isEmpty ? t.noClientsHint : null,
                 )
-              else
+              else ...[
                 GroupCard(children: [
                   for (final c in list)
                     ClientTile(
@@ -111,6 +112,13 @@ class _ClientsScreenState extends State<ClientsScreen> {
                       ),
                     ),
                 ]),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(24, 12, 24, 0),
+                  child: Text(t.swipeHint,
+                      textAlign: TextAlign.center,
+                      style: context.tt.bodySmall?.copyWith(color: context.colors.muted)),
+                ),
+              ],
             ],
           ),
         );
@@ -198,7 +206,33 @@ class _ClientDetailScreenState extends State<ClientDetailScreen> {
                   if (r == -1 && context.mounted) Navigator.pop(context);
                 },
               ),
-              const SizedBox(width: 4),
+              PopupMenuButton<String>(
+                onSelected: (v) async {
+                  if (v == 'edit') {
+                    final r = await Navigator.push<int>(
+                      context,
+                      MaterialPageRoute(builder: (_) => ClientFormPage(client: c)),
+                    );
+                    if (r == -1 && context.mounted) Navigator.pop(context);
+                  } else if (v == 'delete') {
+                    final nav = Navigator.of(context);
+                    if (await deleteClientFlow(context, c)) nav.pop();
+                  }
+                },
+                itemBuilder: (_) => [
+                  PopupMenuItem(
+                    value: 'edit',
+                    child: ListTile(leading: const Icon(Icons.edit_outlined), title: Text(t.editClient)),
+                  ),
+                  PopupMenuItem(
+                    value: 'delete',
+                    child: ListTile(
+                      leading: Icon(Icons.delete_outline_rounded, color: context.colors.expense),
+                      title: Text(t.deleteClient, style: TextStyle(color: context.colors.expense)),
+                    ),
+                  ),
+                ],
+              ),
             ],
           ),
           body: ListView(
@@ -301,14 +335,20 @@ class _ClientDetailScreenState extends State<ClientDetailScreen> {
                 padding: const EdgeInsets.fromLTRB(16, 20, 16, 12),
                 child: SegmentedButton<int>(
                   segments: [
-                    ButtonSegment(value: 0, label: Text(t.ordersTab(orders.length))),
-                    ButtonSegment(value: 1, label: Text(t.paymentsTab(payments.length))),
+                    ButtonSegment(value: 0, label: segLabel(t.ordersTab(orders.length))),
+                    ButtonSegment(value: 1, label: segLabel(t.paymentsTab(payments.length))),
                   ],
                   selected: {_tab},
                   showSelectedIcon: false,
                   onSelectionChanged: (s) => setState(() => _tab = s.first),
                 ),
               ),
+              if (orders.isNotEmpty || payments.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(24, 0, 24, 10),
+                  child: Text(t.swipeHint,
+                      textAlign: TextAlign.center, style: context.tt.bodySmall?.copyWith(color: col.muted)),
+                ),
               if (_tab == 0)
                 orders.isEmpty
                     ? EmptyState(icon: Icons.handyman_outlined, title: t.noOrders)

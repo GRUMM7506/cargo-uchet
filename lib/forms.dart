@@ -74,12 +74,29 @@ class _FormScaffold extends StatelessWidget {
       bottomNavigationBar: SafeArea(
         child: Padding(
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-          child: FilledButton.icon(
-            style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(56)),
-            icon: const Icon(Icons.check_rounded),
-            label: Text(t.save, style: const TextStyle(fontSize: 16)),
-            onPressed: onSave,
-          ),
+          child: Row(children: [
+            if (onDelete != null) ...[
+              OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(
+                  minimumSize: const Size(0, 54),
+                  foregroundColor: context.colors.expense,
+                  side: BorderSide(color: context.colors.expense.withValues(alpha: 0.5)),
+                ),
+                icon: const Icon(Icons.delete_outline_rounded),
+                label: Text(t.delete),
+                onPressed: onDelete,
+              ),
+              const SizedBox(width: 10),
+            ],
+            Expanded(
+              child: FilledButton.icon(
+                style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(54)),
+                icon: const Icon(Icons.check_rounded),
+                label: Text(t.save, style: const TextStyle(fontSize: 16)),
+                onPressed: onSave,
+              ),
+            ),
+          ]),
         ),
       ),
     );

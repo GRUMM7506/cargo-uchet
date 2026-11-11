@@ -275,6 +275,22 @@ abstract class S {
   String get totalApprox;
   String get byCurrencies;
   String rateFor(String code);
+
+  // --- правка/удаление, масштаб ---
+  String get uiSize;
+  String get uiSizeHint;
+  String get sizeAuto;
+  String get sizeSmall;
+  String get sizeNormal;
+  String get sizeLarge;
+  String get actions;
+  String get swipeHint;
+  String get editOrder;
+  String get deleteOrder;
+  String get editClient;
+  String get deleteClient;
+  String get deleted;
+  String get open;
 }
 
 // ============================================================================
@@ -456,7 +472,7 @@ class _Ru extends S {
   @override
   String get nothingFound => 'Ничего не найдено';
   @override
-  String get longPressHint => 'Удерживайте заказ, чтобы отметить его выполненным';
+  String get longPressHint => 'Удерживайте заказ — меню: выполнен, изменить, удалить. Смахните влево — удалить.';
   @override
   String pcs(int n) => '$n шт';
   @override
@@ -792,6 +808,36 @@ class _Ru extends S {
   String get byCurrencies => 'По валютам';
   @override
   String rateFor(String code) => 'Курс: 1 $code =';
+
+  // --- правка/удаление, масштаб ---
+  @override
+  String get uiSize => 'Размер интерфейса';
+  @override
+  String get uiSizeHint => 'Если надписи не помещаются или переносятся — выберите «Мельче».';
+  @override
+  String get sizeAuto => 'Авто';
+  @override
+  String get sizeSmall => 'Мельче';
+  @override
+  String get sizeNormal => 'Обычный';
+  @override
+  String get sizeLarge => 'Крупнее';
+  @override
+  String get actions => 'Действия';
+  @override
+  String get swipeHint => 'Удерживайте запись или смахните влево, чтобы изменить или удалить';
+  @override
+  String get editOrder => 'Изменить заказ';
+  @override
+  String get deleteOrder => 'Удалить заказ';
+  @override
+  String get editClient => 'Изменить клиента';
+  @override
+  String get deleteClient => 'Удалить клиента';
+  @override
+  String get deleted => 'Удалено';
+  @override
+  String get open => 'Открыть';
 }
 
 // ============================================================================
@@ -963,7 +1009,7 @@ class _Uz extends S {
   @override
   String get nothingFound => 'Hech narsa topilmadi';
   @override
-  String get longPressHint => 'Bajarildi deb belgilash uchun buyurtmani bosib turing';
+  String get longPressHint => 'Buyurtmani bosib turing — menyu: bajarildi, tahrirlash, oʻchirish. Chapga suring — oʻchirish.';
   @override
   String pcs(int n) => '$n ta';
   @override
@@ -1301,4 +1347,34 @@ class _Uz extends S {
   String get byCurrencies => 'Valyutalar boʻyicha';
   @override
   String rateFor(String code) => 'Kurs: 1 $code =';
+
+  // --- правка/удаление, масштаб ---
+  @override
+  String get uiSize => 'Interfeys oʻlchami';
+  @override
+  String get uiSizeHint => 'Yozuvlar sigʻmasa yoki keyingi qatorga oʻtsa — «Kichik»ni tanlang.';
+  @override
+  String get sizeAuto => 'Avto';
+  @override
+  String get sizeSmall => 'Kichik';
+  @override
+  String get sizeNormal => 'Oddiy';
+  @override
+  String get sizeLarge => 'Katta';
+  @override
+  String get actions => 'Amallar';
+  @override
+  String get swipeHint => 'Tahrirlash yoki oʻchirish uchun yozuvni bosib turing yoki chapga suring';
+  @override
+  String get editOrder => 'Buyurtmani tahrirlash';
+  @override
+  String get deleteOrder => 'Buyurtmani oʻchirish';
+  @override
+  String get editClient => 'Mijozni tahrirlash';
+  @override
+  String get deleteClient => 'Mijozni oʻchirish';
+  @override
+  String get deleted => 'Oʻchirildi';
+  @override
+  String get open => 'Ochish';
 }

@@ -8,6 +8,7 @@ import '../screens/order_screen.dart';
 import '../settings.dart';
 import '../store.dart';
 import '../theme.dart';
+import 'actions.dart';
 import 'common.dart';
 
 final _store = AppStore.I;
@@ -51,6 +52,8 @@ class ListRow extends StatelessWidget {
   final Widget trailing;
   final VoidCallback? onTap;
   final VoidCallback? onLongPress;
+  final Key? swipeKey;
+  final Future<bool> Function()? onSwipeDelete;
 
   const ListRow({
     super.key,
@@ -61,10 +64,18 @@ class ListRow extends StatelessWidget {
     required this.trailing,
     this.onTap,
     this.onLongPress,
+    this.swipeKey,
+    this.onSwipeDelete,
   });
 
   @override
   Widget build(BuildContext context) {
+    final row = _row(context);
+    if (swipeKey == null || onSwipeDelete == null) return row;
+    return SwipeToDelete(itemKey: swipeKey!, onDelete: onSwipeDelete!, child: row);
+  }
+
+  Widget _row(BuildContext context) {
     return InkWell(
       onTap: onTap,
       onLongPress: onLongPress,
@@ -121,6 +132,9 @@ class PaymentTile extends StatelessWidget {
       subtitle: showClient && sub.isEmpty ? t.payment : sub,
       trailing: Text(money(p.amountCents, cur: p.currency, plus: true), style: amountStyle(15, color: c.income)),
       onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => PaymentFormPage(payment: p))),
+      onLongPress: () => paymentActions(context, p),
+      swipeKey: ValueKey('pay-${p.id}'),
+      onSwipeDelete: () => deletePaymentFlow(context, p),
     );
   }
 }
@@ -141,6 +155,8 @@ class DepositTile extends StatelessWidget {
       subtitle: '${t.deposit} · ${o.title}',
       trailing: Text(money(o.depositCents, cur: o.currency, plus: true), style: amountStyle(15, color: c.income)),
       onTap: () => OrderScreen.open(context, o.id!),
+      onLongPress: () => orderActions(context, o,
+          showDone: AppSettings.I.show(OrderField.done), onOpen: () => OrderScreen.open(context, o.id!)),
     );
   }
 }
@@ -160,6 +176,9 @@ class ExpenseTile extends StatelessWidget {
       subtitle: [if (showDate) shortDay(e.spentAt), if (e.note.isNotEmpty) e.note].join(' · '),
       trailing: Text(money(-e.amountCents, cur: e.currency), style: amountStyle(15, color: c.expense)),
       onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => ExpenseFormPage(expense: e))),
+      onLongPress: () => expenseActions(context, e),
+      swipeKey: ValueKey('exp-${e.id}'),
+      onSwipeDelete: () => deleteExpenseFlow(context, e),
     );
   }
 }
@@ -232,12 +251,9 @@ class OrderTile extends StatelessWidget {
         ],
       ]),
       onTap: previewName != null ? null : () => OrderScreen.open(context, o.id!),
-      onLongPress: previewName == null && s.show(OrderField.done)
-          ? () async {
-              await _store.setOrderDone(o, !o.isDone);
-              if (context.mounted) toast(context, o.isDone ? t.orderBackInWork : t.orderDone);
-            }
-          : null,
+      onLongPress: previewName != null ? null : () => orderActions(context, o, showDone: s.show(OrderField.done)),
+      swipeKey: previewName != null ? null : ValueKey('ord-${o.id}'),
+      onSwipeDelete: previewName != null ? null : () => deleteOrderFlow(context, o),
     );
   }
 }
@@ -261,6 +277,9 @@ class ClientTile extends StatelessWidget {
       subtitle: sub.isEmpty ? null : sub,
       trailing: ClientBalancePill(client.id!),
       onTap: onTap,
+      onLongPress: () => clientActions(context, client),
+      swipeKey: ValueKey('cli-${client.id}'),
+      onSwipeDelete: () => deleteClientFlow(context, client),
     );
   }
 }

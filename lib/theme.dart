@@ -110,7 +110,7 @@ ThemeData buildTheme(Brightness brightness, Color seed) {
         headlineLarge: t.headlineLarge?.copyWith(fontFamily: displayFont, fontWeight: FontWeight.w700),
         headlineMedium: t.headlineMedium?.copyWith(fontFamily: displayFont, fontWeight: FontWeight.w700),
         headlineSmall: t.headlineSmall?.copyWith(fontFamily: displayFont, fontWeight: FontWeight.w700),
-        titleLarge: t.titleLarge?.copyWith(fontFamily: displayFont, fontWeight: FontWeight.w700, fontSize: 21),
+        titleLarge: t.titleLarge?.copyWith(fontFamily: displayFont, fontWeight: FontWeight.w700, fontSize: 19),
         titleMedium: t.titleMedium?.copyWith(fontWeight: FontWeight.w600),
         titleSmall: t.titleSmall?.copyWith(fontWeight: FontWeight.w600),
         labelLarge: t.labelLarge?.copyWith(fontWeight: FontWeight.w600),
@@ -131,7 +131,7 @@ ThemeData buildTheme(Brightness brightness, Color seed) {
       titleTextStyle: TextStyle(
         fontFamily: displayFont,
         fontWeight: FontWeight.w700,
-        fontSize: 22,
+        fontSize: 20,
         color: scheme.onSurface,
       ),
     ),
@@ -185,7 +185,7 @@ ThemeData buildTheme(Brightness brightness, Color seed) {
       extendedTextStyle: const TextStyle(fontFamily: bodyFont, fontWeight: FontWeight.w600, fontSize: 15),
     ),
     navigationBarTheme: NavigationBarThemeData(
-      height: 70,
+      height: 66,
       elevation: 0,
       backgroundColor: scheme.surfaceContainerLow,
       surfaceTintColor: Colors.transparent,
@@ -194,7 +194,7 @@ ThemeData buildTheme(Brightness brightness, Color seed) {
       labelTextStyle: WidgetStateProperty.resolveWith(
         (s) => TextStyle(
           fontFamily: bodyFont,
-          fontSize: 12,
+          fontSize: 11,
           fontWeight: s.contains(WidgetState.selected) ? FontWeight.w700 : FontWeight.w500,
           color: s.contains(WidgetState.selected) ? scheme.onSurface : scheme.onSurfaceVariant,
         ),
@@ -209,12 +209,13 @@ ThemeData buildTheme(Brightness brightness, Color seed) {
       style: SegmentedButton.styleFrom(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
         side: BorderSide(color: outline),
-        textStyle: const TextStyle(fontFamily: bodyFont, fontWeight: FontWeight.w600),
+        textStyle: const TextStyle(fontFamily: bodyFont, fontWeight: FontWeight.w600, fontSize: 13),
+        visualDensity: VisualDensity.compact,
       ),
     ),
     listTileTheme: ListTileThemeData(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      titleTextStyle: TextStyle(fontFamily: bodyFont, fontSize: 15, fontWeight: FontWeight.w600, color: scheme.onSurface),
+      titleTextStyle: TextStyle(fontFamily: bodyFont, fontSize: 14.5, fontWeight: FontWeight.w600, color: scheme.onSurface),
       subtitleTextStyle: TextStyle(fontFamily: bodyFont, fontSize: 13, color: scheme.onSurfaceVariant),
     ),
     bottomSheetTheme: BottomSheetThemeData(

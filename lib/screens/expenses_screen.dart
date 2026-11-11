@@ -81,8 +81,14 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
               ),
               if (list.isEmpty)
                 EmptyState(icon: Icons.savings_outlined, title: t.noExpenses, text: t.noExpensesHint)
-              else
+              else ...[
                 DayGroupedList(items: [for (final e in list) (e.spentAt, ExpenseTile(e))]),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(24, 12, 24, 0),
+                  child: Text(t.swipeHint,
+                      textAlign: TextAlign.center, style: context.tt.bodySmall?.copyWith(color: c.muted)),
+                ),
+              ],
             ],
           ),
         );

@@ -62,6 +62,9 @@ class MonthSwitcher extends StatelessWidget {
       );
 }
 
+/// Подпись для SegmentedButton — в одну строку, при нехватке места уменьшается.
+Widget segLabel(String text) => FittedBox(fit: BoxFit.scaleDown, child: Text(text, maxLines: 1, softWrap: false));
+
 // ---------------------------------------------------------------------------
 // Карточки и заголовки
 // ---------------------------------------------------------------------------

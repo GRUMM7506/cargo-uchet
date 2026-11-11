@@ -9,6 +9,7 @@ import '../services/rates.dart';
 import '../settings.dart';
 import '../store.dart';
 import '../theme.dart';
+import '../widgets/actions.dart';
 import '../widgets/common.dart';
 import '../widgets/tiles.dart';
 import 'clients_screen.dart';
@@ -62,7 +63,30 @@ class OrderScreen extends StatelessWidget {
                   if (r == -1 && context.mounted) Navigator.pop(context);
                 },
               ),
-              const SizedBox(width: 4),
+              PopupMenuButton<String>(
+                onSelected: (v) async {
+                  if (v == 'edit') {
+                    final r = await Navigator.push(context, MaterialPageRoute(builder: (_) => OrderFormPage(order: o)));
+                    if (r == -1 && context.mounted) Navigator.pop(context);
+                  } else if (v == 'delete') {
+                    final nav = Navigator.of(context);
+                    if (await deleteOrderFlow(context, o)) nav.pop();
+                  }
+                },
+                itemBuilder: (_) => [
+                  PopupMenuItem(
+                    value: 'edit',
+                    child: ListTile(leading: const Icon(Icons.edit_outlined), title: Text(t.editOrder)),
+                  ),
+                  PopupMenuItem(
+                    value: 'delete',
+                    child: ListTile(
+                      leading: Icon(Icons.delete_outline_rounded, color: context.colors.expense),
+                      title: Text(t.deleteOrder, style: TextStyle(color: context.colors.expense)),
+                    ),
+                  ),
+                ],
+              ),
             ],
           ),
           body: ListView(
@@ -212,6 +236,34 @@ class OrderScreen extends StatelessWidget {
                   children: [for (final p in pays) PaymentTile(p, showClient: false, showDate: true)],
                 ),
               ],
+              const SizedBox(height: 20),
+              Row(children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    icon: const Icon(Icons.edit_outlined),
+                    label: Text(t.edit),
+                    onPressed: () async {
+                      final r = await Navigator.push(context, MaterialPageRoute(builder: (_) => OrderFormPage(order: o)));
+                      if (r == -1 && context.mounted) Navigator.pop(context);
+                    },
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: OutlinedButton.icon(
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: c.expense,
+                      side: BorderSide(color: c.expense.withValues(alpha: 0.5)),
+                    ),
+                    icon: const Icon(Icons.delete_outline_rounded),
+                    label: Text(t.delete),
+                    onPressed: () async {
+                      final nav = Navigator.of(context);
+                      if (await deleteOrderFlow(context, o)) nav.pop();
+                    },
+                  ),
+                ),
+              ]),
             ],
           ),
         );

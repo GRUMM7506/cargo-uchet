@@ -90,9 +90,9 @@ class _OrdersScreenState extends State<OrdersScreen> {
                 padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
                 child: SegmentedButton<_Filter>(
                   segments: [
-                    if (showStatus) ButtonSegment(value: _Filter.active, label: Text(t.filterActive(activeCount))),
-                    ButtonSegment(value: _Filter.debt, label: Text(t.filterDebt)),
-                    ButtonSegment(value: _Filter.all, label: Text(t.seeAll)),
+                    if (showStatus) ButtonSegment(value: _Filter.active, label: segLabel(t.filterActive(activeCount))),
+                    ButtonSegment(value: _Filter.debt, label: segLabel(t.filterDebt)),
+                    ButtonSegment(value: _Filter.all, label: segLabel(t.seeAll)),
                   ],
                   selected: {filter},
                   showSelectedIcon: false,

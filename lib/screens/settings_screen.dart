@@ -68,7 +68,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             SectionCard(title: t.language, children: [
               SegmentedButton<String>(
                 segments: [
-                  for (final e in AppSettings.languages.entries) ButtonSegment(value: e.key, label: Text(e.value)),
+                  for (final e in AppSettings.languages.entries) ButtonSegment(value: e.key, label: segLabel(e.value)),
                 ],
                 selected: {s.lang},
                 showSelectedIcon: false,
@@ -123,16 +123,32 @@ class _SettingsScreenState extends State<SettingsScreen> {
               SegmentedButton<ThemeMode>(
                 segments: [
                   ButtonSegment(
-                      value: ThemeMode.system, icon: const Icon(Icons.brightness_auto_outlined), label: Text(t.themeAuto)),
+                      value: ThemeMode.system, icon: const Icon(Icons.brightness_auto_outlined), label: segLabel(t.themeAuto)),
                   ButtonSegment(
-                      value: ThemeMode.light, icon: const Icon(Icons.light_mode_outlined), label: Text(t.themeLight)),
+                      value: ThemeMode.light, icon: const Icon(Icons.light_mode_outlined), label: segLabel(t.themeLight)),
                   ButtonSegment(
-                      value: ThemeMode.dark, icon: const Icon(Icons.dark_mode_outlined), label: Text(t.themeDark)),
+                      value: ThemeMode.dark, icon: const Icon(Icons.dark_mode_outlined), label: segLabel(t.themeDark)),
                 ],
                 selected: {s.themeMode},
                 showSelectedIcon: false,
                 onSelectionChanged: (v) => s.setThemeMode(v.first),
               ),
+              const SizedBox(height: 18),
+              Text(t.uiSize, style: context.tt.titleSmall),
+              const SizedBox(height: 10),
+              SegmentedButton<String>(
+                segments: [
+                  ButtonSegment(value: 'auto', label: segLabel(t.sizeAuto)),
+                  ButtonSegment(value: 'small', label: segLabel(t.sizeSmall)),
+                  ButtonSegment(value: 'normal', label: segLabel(t.sizeNormal)),
+                  ButtonSegment(value: 'large', label: segLabel(t.sizeLarge)),
+                ],
+                selected: {s.uiScale},
+                showSelectedIcon: false,
+                onSelectionChanged: (v) => s.setUiScale(v.first),
+              ),
+              const SizedBox(height: 6),
+              Text(t.uiSizeHint, style: context.tt.bodySmall?.copyWith(color: context.colors.muted)),
               const SizedBox(height: 18),
               Text(t.color, style: context.tt.titleSmall),
               const SizedBox(height: 12),
@@ -219,7 +235,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   child: Image.asset('assets/images/logo.png', width: 56, height: 56),
                 ),
                 const SizedBox(height: 8),
-                Text('${t.appTitle} · ${t.versionLabel} 2.1',
+                Text('${t.appTitle} · ${t.versionLabel} 2.2',
                     style: context.tt.bodySmall?.copyWith(color: context.colors.muted)),
               ]),
             ),

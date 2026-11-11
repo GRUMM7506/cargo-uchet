@@ -28,6 +28,21 @@ class AppSettings extends ChangeNotifier {
   int accentIndex = 0;
   Set<OrderField> hidden = {};
 
+  /// Размер интерфейса: 'auto' | 'small' | 'normal' | 'large'.
+  String uiScale = 'auto';
+
+  /// Множитель масштаба для экрана шириной [width] (логических точек).
+  double scaleFor(double width) {
+    // «Авто»: на узких экранах и при увеличенном масштабе телефона чуть уменьшаем всё.
+    final auto = (width / 392).clamp(0.82, 1.0);
+    return switch (uiScale) {
+      'small' => auto * 0.9,
+      'normal' => 1.0,
+      'large' => 1.1,
+      _ => auto,
+    };
+  }
+
   /// Основная валюта: в ней итоги, долги и отчёты; её предлагаем при вводе.
   String currency = 'USD';
 
@@ -58,6 +73,7 @@ class AppSettings extends ChangeNotifier {
     accentIndex = int.tryParse(m['accent'] ?? '') ?? 0;
     final keys = (m['hidden_v3'] ?? '').split(',').where((s) => s.isNotEmpty).toSet();
     hidden = OrderField.values.where((f) => keys.contains(f.name)).toSet();
+    uiScale = const {'auto', 'small', 'normal', 'large'}.contains(m['ui_scale']) ? m['ui_scale']! : 'auto';
     currency = isKnownCurrency(m['currency'] ?? '') ? m['currency']! : 'USD';
     final en = (m['currencies'] ?? '').split(',').where(isKnownCurrency).toList();
     enabledCurrencies = en.isEmpty ? [...defaultEnabledCurrencies] : en;
@@ -88,6 +104,12 @@ class AppSettings extends ChangeNotifier {
     accentIndex = i;
     notifyListeners();
     await _put('accent', '$i');
+  }
+
+  Future<void> setUiScale(String v) async {
+    uiScale = v;
+    notifyListeners();
+    await _put('ui_scale', v);
   }
 
   Future<void> setCurrency(String code) async {

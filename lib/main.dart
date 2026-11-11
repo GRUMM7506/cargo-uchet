@@ -76,7 +76,47 @@ class _UchetAppState extends State<UchetApp> {
       themeMode: s.themeMode,
       theme: buildTheme(Brightness.light, s.accent),
       darkTheme: buildTheme(Brightness.dark, s.accent),
+      builder: (context, child) => UiScale(scale: s.uiScale, child: child!),
       home: const HomeShell(),
+    );
+  }
+}
+
+/// Масштаб всего интерфейса + ограничение системного размера шрифта,
+/// чтобы на телефонах с крупным масштабом ничего не переносилось и не вылезало.
+class UiScale extends StatelessWidget {
+  final String scale;
+  final Widget child;
+
+  const UiScale({super.key, required this.scale, required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    final mq = MediaQuery.of(context);
+    final f = AppSettings.I.scaleFor(mq.size.width);
+    // системный шрифт: не больше +15% и не меньше −15%
+    final text = mq.textScaler.clamp(minScaleFactor: 0.85, maxScaleFactor: 1.15);
+    if ((f - 1).abs() < 0.01) {
+      return MediaQuery(data: mq.copyWith(textScaler: text), child: child);
+    }
+    final size = mq.size / f;
+    return MediaQuery(
+      data: mq.copyWith(
+        size: size,
+        devicePixelRatio: mq.devicePixelRatio * f,
+        padding: mq.padding / f,
+        viewPadding: mq.viewPadding / f,
+        viewInsets: mq.viewInsets / f,
+        systemGestureInsets: mq.systemGestureInsets / f,
+        textScaler: text,
+      ),
+      child: ClipRect(
+        child: FittedBox(
+          fit: BoxFit.fill,
+          alignment: Alignment.topLeft,
+          child: SizedBox(width: size.width, height: size.height, child: child),
+        ),
+      ),
     );
   }
 }

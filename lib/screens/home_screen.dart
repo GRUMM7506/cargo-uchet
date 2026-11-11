@@ -133,8 +133,15 @@ class _HomeScreenState extends State<HomeScreen> {
               SectionHeader(t.moneyFlow, padding: const EdgeInsets.fromLTRB(20, 24, 12, 0)),
               if (ops.isEmpty)
                 EmptyState(icon: Icons.receipt_long_outlined, title: t.emptyTitle, text: t.emptyMoneyFlow)
-              else
+              else ...[
                 DayGroupedList(items: ops),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(24, 12, 24, 0),
+                  child: Text(t.swipeHint,
+                      textAlign: TextAlign.center,
+                      style: context.tt.bodySmall?.copyWith(color: context.colors.muted)),
+                ),
+              ],
             ],
           ),
         );
@@ -184,7 +191,7 @@ class _HeroCard extends StatelessWidget {
         FittedBox(
           fit: BoxFit.scaleDown,
           alignment: Alignment.centerLeft,
-          child: Text(money(profit), style: amountStyle(38, color: fg)),
+          child: Text(money(profit), style: amountStyle(34, color: fg)),
         ),
         const SizedBox(height: 16),
         Row(children: [
